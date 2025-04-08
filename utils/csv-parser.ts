@@ -1,176 +1,217 @@
-import type { DataPoint, AlertData } from "./data-utils"
+export interface DataPoint {
+  category: string
+  week: string
+  value: number
+  scenario: string
+}
 
-export function parseCSVData(
-  csvText: string,
+export interface AlertData {
+  category: string
+  count: number
+  scenario: string
+}
+
+export interface ScenarioData {
+  name: string
+  description: string
+  color: string
+}
+
+export const scenarios: ScenarioData[] = [
+  { name: "BASE", description: "Base Plan", color: "#8884d8" },
+  { name: "S1", description: "S1 - Expedite POs & Move Sales Orders", color: "#82ca9d" },
+  { name: "S2", description: "S2 - Increase Capacities", color: "#ffc658" },
+  { name: "S3", description: "S3 - Increase Material Purchases", color: "#ff8042" },
+  { name: "S4", description: "S4 - Fine-tuned Solution", color: "#0088fe" },
+]
+
+export function parseCSV(csvText: string): string[][] {
+  const lines = csvText.split("\n")
+  return lines.map((line) => {
+    // Handle quoted values correctly
+    const result = []
+    let inQuotes = false
+    let currentValue = ""
+
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i]
+
+      if (char === '"') {
+        inQuotes = !inQuotes
+      } else if (char === "," && !inQuotes) {
+        result.push(currentValue)
+        currentValue = ""
+      } else {
+        currentValue += char
+      }
+    }
+
+    result.push(currentValue)
+    return result
+  })
+}
+
+export function processCSVData(
+  csvData: string[][],
   scenarioName: string,
-): { timeSeriesData: DataPoint[]; alertsData: AlertData[] } {
-  console.log(`Starting to parse CSV data for ${scenarioName}`)
+): {
+  timeSeriesData: DataPoint[]
+  alertsData: AlertData[]
+} {
   const timeSeriesData: DataPoint[] = []
   const alertsData: AlertData[] = []
 
-  try {
-    // Split the CSV into lines and clean up
-    const lines = csvText.split(/\r?\n/).filter((line) => line.trim() !== "")
-    console.log(`CSV has ${lines.length} lines after cleanup`)
+  // Find header row and column indices
+  const headerRowIndex = csvData.findIndex((row) => row.some((cell) => cell.includes("Week / Week Ending")))
 
-    if (lines.length === 0) {
-      throw new Error("CSV file is empty")
-    }
+  if (headerRowIndex === -1) {
+    return { timeSeriesData, alertsData }
+  }
 
-    // Log the first few lines to help with debugging
-    console.log("First 5 lines of CSV:")
-    for (let i = 0; i < Math.min(5, lines.length); i++) {
-      console.log(`Line ${i}: ${lines[i].substring(0, 100)}${lines[i].length > 100 ? "..." : ""}`)
-    }
+  const headerRow = csvData[headerRowIndex]
+  const weekIndices = headerRow.map((cell, index) => (cell.trim() !== "" ? index : -1)).filter((index) => index > 0)
 
-    // Try to find the header row - look for keywords in the first 20 lines
-    let headerRow = -1
-    for (let i = 0; i < Math.min(20, lines.length); i++) {
-      const line = lines[i].toLowerCase()
-      if (line.includes("week") || line.includes("requirements") || line.includes("plant")) {
-        headerRow = i
-        console.log(`Found header row at line ${i}: ${lines[i]}`)
-        break
-      }
-    }
+  // Process data rows
+  for (let i = headerRowIndex + 1; i < csvData.length; i++) {
+    const row = csvData[i]
+    if (!row || row.length === 0 || !row[0]) continue
 
-    if (headerRow === -1) {
-      console.warn("Could not find a standard header row, using first line as header")
-      headerRow = 0
-    }
+    const category = row[0].trim()
+    if (!category) continue
 
-    // Parse the header to get column indices
-    const headers = lines[headerRow].split(",").map((h) => h.trim())
-    console.log(`Headers: ${headers.join(", ")}`)
+    // Skip empty or header-like rows
+    if (category === "" || category.includes("Week") || category.includes("Requirements")) continue
 
-    const weekIndices: number[] = []
-    const weekLabels: string[] = []
+    // Process time series data
+    weekIndices.forEach((weekIndex) => {
+      if (weekIndex < row.length) {
+        const week = headerRow[weekIndex].trim()
+        const value = Number.parseFloat(row[weekIndex])
 
-    // Look for week columns - either numeric or containing "week"
-    for (let i = 0; i < headers.length; i++) {
-      const header = headers[i].trim()
-      if (header.match(/^\d+$/) || header.toLowerCase().includes("week")) {
-        weekIndices.push(i)
-        weekLabels.push(header)
-        console.log(`Found week column at index ${i}: ${header}`)
-      }
-    }
-
-    if (weekIndices.length === 0) {
-      console.warn("No standard week columns found, using all numeric columns")
-      // Fallback: use any column with numeric data in the first data row
-      const firstDataRow = lines[headerRow + 1].split(",")
-      for (let i = 0; i < firstDataRow.length; i++) {
-        if (!isNaN(Number(firstDataRow[i].trim()))) {
-          weekIndices.push(i)
-          weekLabels.push(headers[i] || `Column ${i}`)
-          console.log(`Using numeric column at index ${i}: ${headers[i] || `Column ${i}`}`)
-        }
-      }
-    }
-
-    if (weekIndices.length === 0) {
-      throw new Error("Could not identify any data columns in the CSV")
-    }
-
-    // Process data rows
-    let currentCategory = ""
-
-    for (let i = headerRow + 1; i < lines.length; i++) {
-      const line = lines[i].trim()
-      if (!line) continue
-
-      const cells = line.split(",").map((cell) => cell.trim())
-
-      // Check if this is a category row (first cell is non-numeric and not empty)
-      if (cells[0] && !cells[0].match(/^\d+$/)) {
-        currentCategory = cells[0]
-        console.log(`Found category: ${currentCategory}`)
-
-        // Check if this is an alert category
-        if (currentCategory.toLowerCase().includes("alert")) {
-          let alertType = "General"
-
-          if (currentCategory.toLowerCase().includes("critical")) {
-            alertType = "Critical"
-          } else if (currentCategory.toLowerCase().includes("capacity")) {
-            alertType = "Capacity"
-          }
-
-          // Add alert data - use the first numeric value found
-          for (let j = 1; j < cells.length; j++) {
-            if (cells[j] && !isNaN(Number(cells[j]))) {
-              const alertCount = Number(cells[j])
-              alertsData.push({
-                type: alertType,
-                count: alertCount,
-                scenario: scenarioName,
-              })
-              console.log(`Added alert data for ${alertType}: ${alertCount}`)
-              break
-            }
-          }
-        }
-        continue
-      }
-
-      // Skip rows that don't have a category
-      if (!currentCategory) {
-        currentCategory = "Unknown" // Fallback category
-      }
-
-      // Process data for each week
-      for (let j = 0; j < weekIndices.length; j++) {
-        const weekIdx = weekIndices[j]
-        const weekLabel = weekLabels[j]
-
-        if (weekIdx < cells.length && cells[weekIdx] && !isNaN(Number(cells[weekIdx]))) {
-          const value = Number(cells[weekIdx])
+        if (!isNaN(value)) {
           timeSeriesData.push({
-            category: currentCategory,
-            week: weekLabel,
+            category,
+            week,
             value,
             scenario: scenarioName,
           })
         }
       }
+    })
+
+    // Process alerts data if this is an alert category
+    if (
+      category.includes("Alert") ||
+      category.includes("Critical") ||
+      category.includes("Capacity") ||
+      category.includes("Supporting")
+    ) {
+      const totalAlerts = weekIndices
+        .map((idx) => Number.parseFloat(row[idx]))
+        .filter((val) => !isNaN(val))
+        .reduce((sum, val) => sum + val, 0)
+
+      alertsData.push({
+        category,
+        count: totalAlerts,
+        scenario: scenarioName,
+      })
     }
-
-    console.log(`Parsed ${timeSeriesData.length} data points and ${alertsData.length} alerts`)
-
-    // If we didn't get any data, try a more aggressive approach
-    if (timeSeriesData.length === 0) {
-      console.warn("No data points found with standard parsing, trying fallback method")
-
-      // Fallback method: assume every row with numbers is data
-      for (let i = headerRow + 1; i < lines.length; i++) {
-        const cells = lines[i].split(",").map((cell) => cell.trim())
-
-        // Skip empty rows
-        if (cells.every((cell) => cell === "")) continue
-
-        // Use first cell as category if it's not numeric
-        const rowCategory = !isNaN(Number(cells[0])) ? "Row " + i : cells[0]
-
-        // Look for numeric values in the row
-        for (let j = 1; j < cells.length; j++) {
-          if (!isNaN(Number(cells[j])) && cells[j] !== "") {
-            timeSeriesData.push({
-              category: rowCategory,
-              week: headers[j] || `Column ${j}`,
-              value: Number(cells[j]),
-              scenario: scenarioName,
-            })
-          }
-        }
-      }
-
-      console.log(`Fallback parsing found ${timeSeriesData.length} data points`)
-    }
-
-    return { timeSeriesData, alertsData }
-  } catch (error) {
-    console.error("Error parsing CSV data:", error)
-    throw new Error(`Failed to parse CSV: ${error instanceof Error ? error.message : String(error)}`)
   }
+
+  return { timeSeriesData, alertsData }
+}
+
+export function aggregateData(data: DataPoint[], category: string): DataPoint[] {
+  const aggregated: { [key: string]: { [scenario: string]: number } } = {}
+
+  data
+    .filter((d) => d.category === category)
+    .forEach((d) => {
+      if (!aggregated[d.week]) {
+        aggregated[d.week] = {}
+      }
+      aggregated[d.week][d.scenario] = d.value
+    })
+
+  const result: DataPoint[] = []
+
+  Object.entries(aggregated).forEach(([week, values]) => {
+    Object.entries(values).forEach(([scenario, value]) => {
+      result.push({
+        category,
+        week,
+        value,
+        scenario,
+      })
+    })
+  })
+
+  return result
+}
+
+export function transformForChart(data: DataPoint[], category: string): any[] {
+  const weeks = [...new Set(data.filter((d) => d.category === category).map((d) => d.week))].sort()
+  const scenarioNames = [...new Set(data.map((d) => d.scenario))]
+
+  return weeks.map((week) => {
+    const result: any = { week }
+
+    scenarioNames.forEach((scenario) => {
+      const point = data.find((d) => d.category === category && d.week === week && d.scenario === scenario)
+      result[scenario] = point ? point.value : 0
+    })
+
+    return result
+  })
+}
+
+export function transformAlertsForChart(data: AlertData[]): any[] {
+  const categories = [...new Set(data.map((d) => d.category))]
+
+  return categories.map((category) => {
+    const result: any = { name: category }
+
+    scenarios.forEach((scenario) => {
+      const alert = data.find((d) => d.category === category && d.scenario === scenario.name)
+      result[scenario.name] = alert ? alert.count : 0
+    })
+
+    return result
+  })
+}
+
+export function calculateKPIs(data: DataPoint[]): { [key: string]: { [scenario: string]: number } } {
+  const kpis: { [key: string]: { [scenario: string]: number } } = {
+    "Fill Rate (%)": {},
+    "Avg. Planned Inventory": {},
+    "Total Production Orders": {},
+    "Total Alerts": {},
+  }
+
+  const scenarioNames = [...new Set(data.map((d) => d.scenario))]
+
+  scenarioNames.forEach((scenario) => {
+    const scenarioData = data.filter((d) => d.scenario === scenario)
+
+    // Fill Rate
+    const fillRateData = scenarioData.filter((d) => d.category === "Fill Rate")
+    kpis["Fill Rate (%)"][scenario] =
+      fillRateData.length > 0 ? fillRateData.reduce((sum, d) => sum + d.value, 0) / fillRateData.length : 0
+
+    // Planned Inventory
+    const inventoryData = scenarioData.filter((d) => d.category === "Planned Inventory")
+    kpis["Avg. Planned Inventory"][scenario] =
+      inventoryData.length > 0 ? inventoryData.reduce((sum, d) => sum + d.value, 0) / inventoryData.length : 0
+
+    // Production Orders
+    const productionData = scenarioData.filter((d) => d.category === "Production Order Quantity")
+    kpis["Total Production Orders"][scenario] = productionData.reduce((sum, d) => sum + d.value, 0)
+
+    // Alerts (assuming we have alert data in the time series)
+    const alertsData = scenarioData.filter((d) => d.category === "Number of Alerts")
+    kpis["Total Alerts"][scenario] = alertsData.reduce((sum, d) => sum + d.value, 0)
+  })
+
+  return kpis
 }
