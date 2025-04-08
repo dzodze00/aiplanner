@@ -12,6 +12,7 @@ export default function Dashboard() {
   const [alertsData, setAlertsData] = useState<any[]>([])
   const [error, setError] = useState<string | null>(null)
   const [debugInfo, setDebugInfo] = useState<string>("")
+  const [loading, setLoading] = useState<boolean>(false)
 
   // Add useEffect to log state changes
   useEffect(() => {
@@ -103,6 +104,59 @@ export default function Dashboard() {
     }
   }
 
+  // Function to fetch data directly from URLs
+  const fetchDataFromUrls = async () => {
+    setLoading(true)
+    setError(null)
+
+    try {
+      // URLs for the different scenarios
+      const urls = {
+        BASE: "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/BASE%20-%20Demand%20Supply%20Time%20Series%20-%20105-VYl9l4W9bMrtecsx0jbERDaSgBiKPy.csv",
+        S1: "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/S1%20-%20Demand%20Supply%20Time%20Series%20-%20105-qo8aidQxFptNVjUWh6EWjnTeEu5oN3.csv",
+        S2: "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/S2%20-%20Demand%20Supply%20Time%20Series%20-%20105-DsjHKBUyK2PAp8uUnDefxJQz1xp3Te.csv",
+        S3: "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/S3%20-%20Demand%20Supply%20Time%20Series%20-%20105-GCaeSYA717KF0UoCT1LauB1M8xr3Ms.csv",
+        S4: "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/S4%20-%20Demand%20Supply%20Time%20Series%20-%20105-eVD2IMt3BH0Rir2GgV9eidV3MjpHxq.csv",
+      }
+
+      // Clear existing data
+      setTimeSeriesData([])
+      setAlertsData([])
+      setLoadedScenarios([])
+
+      // Fetch and process each scenario
+      for (const [scenarioName, url] of Object.entries(urls)) {
+        console.log(`Fetching ${scenarioName} data from URL...`)
+        const response = await fetch(url)
+        const text = await response.text()
+
+        console.log(`Processing ${scenarioName} data...`)
+        const { timeSeriesData: newTimeSeriesData, alertsData: newAlertsData } = parseCSVData(text, scenarioName)
+
+        console.log(
+          `Parsed ${newTimeSeriesData.length} data points and ${newAlertsData.length} alerts for ${scenarioName}`,
+        )
+
+        if (newTimeSeriesData.length > 0) {
+          // Update state with new data
+          setTimeSeriesData((prev) => [...prev, ...newTimeSeriesData])
+          setAlertsData((prev) => [...prev, ...newAlertsData])
+          setLoadedScenarios((prev) => [...prev, scenarioName])
+          console.log(`Added ${scenarioName} data to state`)
+        } else {
+          console.warn(`No data points extracted for ${scenarioName}`)
+        }
+      }
+
+      console.log("Finished loading all scenarios from URLs")
+    } catch (err) {
+      console.error("Error fetching data from URLs:", err)
+      setError(`Error fetching data: ${err instanceof Error ? err.message : String(err)}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   // Calculate some basic statistics for display
   const getDataStatistics = () => {
     if (timeSeriesData.length === 0) return null
@@ -151,6 +205,19 @@ export default function Dashboard() {
       <div className="mb-6">
         <h2 className="text-xl font-semibold mb-2">Data Upload</h2>
         <p className="mb-4">Upload planning data files for analysis</p>
+
+        <div className="mb-4">
+          <button
+            onClick={fetchDataFromUrls}
+            disabled={loading}
+            className="bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded"
+          >
+            {loading ? "Loading..." : "Load All Data from URLs"}
+          </button>
+          <p className="text-sm text-gray-600 mt-1">
+            Click to automatically load all scenario data from the provided URLs
+          </p>
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           {scenarios.map((scenario) => (
