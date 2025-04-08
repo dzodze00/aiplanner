@@ -22,13 +22,22 @@ export function FileUploader({ onDataLoaded, loadedScenarios }: FileUploaderProp
     const file = event.target.files?.[0]
     if (!file) return
 
+    console.log(`Starting upload for ${scenarioName}`, file)
     setLoading((prev) => ({ ...prev, [scenarioName]: true }))
     setError((prev) => ({ ...prev, [scenarioName]: "" }))
 
     try {
       const text = await file.text()
+      console.log(`File content loaded for ${scenarioName}, length: ${text.length}`)
+
       const { timeSeriesData, alertsData } = parseCSVData(text, scenarioName)
+      console.log(`Parsed data for ${scenarioName}:`, {
+        timeSeriesDataLength: timeSeriesData.length,
+        alertsDataLength: alertsData.length,
+      })
+
       onDataLoaded(scenarioName, timeSeriesData, alertsData)
+      console.log(`Data loaded for ${scenarioName}`)
     } catch (err) {
       console.error(`Error parsing ${scenarioName} data:`, err)
       setError((prev) => ({ ...prev, [scenarioName]: "Failed to parse file. Please check the format." }))
@@ -38,6 +47,7 @@ export function FileUploader({ onDataLoaded, loadedScenarios }: FileUploaderProp
   }
 
   const triggerFileUpload = (scenarioName: string) => {
+    console.log(`Triggering file upload for ${scenarioName}`)
     // Create a hidden file input and trigger it
     const input = document.createElement("input")
     input.type = "file"
@@ -46,6 +56,7 @@ export function FileUploader({ onDataLoaded, loadedScenarios }: FileUploaderProp
     // Use a proper event handler that doesn't try to cast the event
     input.onchange = () => {
       if (input.files && input.files.length > 0) {
+        console.log(`File selected for ${scenarioName}:`, input.files[0].name)
         // Create a synthetic event-like object with the necessary properties
         const file = input.files[0]
         const syntheticEvent = {
