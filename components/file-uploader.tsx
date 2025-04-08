@@ -36,6 +36,10 @@ export function FileUploader({ onDataLoaded, loadedScenarios }: FileUploaderProp
         alertsDataLength: alertsData.length,
       })
 
+      if (timeSeriesData.length === 0) {
+        throw new Error("No data points were extracted from the file. Please check the format.")
+      }
+
       onDataLoaded(scenarioName, timeSeriesData, alertsData)
       console.log(`Data loaded for ${scenarioName}`)
     } catch (err) {
@@ -58,7 +62,6 @@ export function FileUploader({ onDataLoaded, loadedScenarios }: FileUploaderProp
       if (input.files && input.files.length > 0) {
         console.log(`File selected for ${scenarioName}:`, input.files[0].name)
         // Create a synthetic event-like object with the necessary properties
-        const file = input.files[0]
         const syntheticEvent = {
           target: { files: input.files },
           currentTarget: { files: input.files },
@@ -76,8 +79,8 @@ export function FileUploader({ onDataLoaded, loadedScenarios }: FileUploaderProp
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Data Upload</CardTitle>
-        <CardDescription>Upload planning data files for analysis</CardDescription>
+        <CardTitle>Step 1: Upload Data Files</CardTitle>
+        <CardDescription>Upload all scenario files before proceeding to analysis</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
