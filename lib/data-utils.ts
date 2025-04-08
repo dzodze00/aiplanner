@@ -23,6 +23,8 @@ export function transformForChart(data: DataPoint[], category: string): any[] {
   // Group by week
   const groupedByWeek = data.reduce(
     (acc, curr) => {
+      if (curr.category !== category) return acc
+
       if (!acc[curr.week]) {
         acc[curr.week] = {}
       }
@@ -119,15 +121,6 @@ export function calculateKPIs(data: DataPoint[]): { [key: string]: { [scenario: 
         kpis[category][scenario] = values.reduce((sum, val) => sum + val, 0) / values.length
       }
     }
-  }
-
-  // Add alert categories if they don't exist
-  if (!kpis["Critical Alerts"]) {
-    kpis["Critical Alerts"] = {}
-  }
-
-  if (!kpis["Capacity Alerts"]) {
-    kpis["Capacity Alerts"] = {}
   }
 
   return kpis
