@@ -74,7 +74,7 @@ export default function Dashboard() {
   // Update available categories and weeks when data changes
   useEffect(() => {
     if (timeSeriesData.length > 0) {
-      const uniqueCategories = [...new Set(timeSeriesData.map((d) => d.category))]
+      const uniqueCategories = Array.from(new Set(timeSeriesData.map((d) => d.category)))
       setCategories(uniqueCategories)
 
       if (!selectedCategory && uniqueCategories.length > 0) {
@@ -83,7 +83,7 @@ export default function Dashboard() {
         setSelectedCategory(defaultCategory)
       }
 
-      const uniqueWeeks = [...new Set(timeSeriesData.map((d) => d.week))].sort()
+      const uniqueWeeks = Array.from(new Set(timeSeriesData.map((d) => d.week))).sort()
       setWeeks(uniqueWeeks)
 
       if (selectedWeeks.length === 0 && uniqueWeeks.length > 0) {
