@@ -37,6 +37,31 @@ export function FileUploader({ onDataLoaded, loadedScenarios }: FileUploaderProp
     }
   }
 
+  const triggerFileUpload = (scenarioName: string) => {
+    // Create a hidden file input and trigger it
+    const input = document.createElement("input")
+    input.type = "file"
+    input.accept = ".csv"
+
+    // Use a proper event handler that doesn't try to cast the event
+    input.onchange = () => {
+      if (input.files && input.files.length > 0) {
+        // Create a synthetic event-like object with the necessary properties
+        const file = input.files[0]
+        const syntheticEvent = {
+          target: { files: input.files },
+          currentTarget: { files: input.files },
+          preventDefault: () => {},
+          stopPropagation: () => {},
+        } as React.ChangeEvent<HTMLInputElement>
+
+        handleFileUpload(syntheticEvent, scenarioName)
+      }
+    }
+
+    input.click()
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -84,15 +109,7 @@ export function FileUploader({ onDataLoaded, loadedScenarios }: FileUploaderProp
                       size="sm"
                       className="w-full"
                       disabled={isLoading}
-                      onClick={() => {
-                        // Create a hidden file input and trigger it
-                        const input = document.createElement("input")
-                        input.type = "file"
-                        input.accept = ".csv"
-                        input.onchange = (e) =>
-                          handleFileUpload(e as React.ChangeEvent<HTMLInputElement>, scenario.name)
-                        input.click()
-                      }}
+                      onClick={() => triggerFileUpload(scenario.name)}
                     >
                       {isLoading ? (
                         "Loading..."
