@@ -5,6 +5,9 @@ import type React from "react"
 import { useState, useEffect } from "react"
 import { parseCSVData } from "@/lib/csv-parser"
 import { scenarios } from "@/lib/data-utils"
+import { Button } from "@/components/ui/button"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { AlertCircle } from "lucide-react"
 
 export default function Dashboard() {
   const [loadedScenarios, setLoadedScenarios] = useState<string[]>([])
@@ -13,6 +16,7 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null)
   const [debugInfo, setDebugInfo] = useState<string>("")
   const [loading, setLoading] = useState<boolean>(false)
+  const [processingStatus, setProcessingStatus] = useState<Record<string, string>>({})
 
   // Add useEffect to log state changes
   useEffect(() => {
@@ -36,6 +40,12 @@ export default function Dashboard() {
       }
     })
 
+    // Count data points by scenario
+    const countByScenario: Record<string, number> = {}
+    scenariosInData.forEach((scenario) => {
+      countByScenario[scenario as string] = timeSeriesData.filter((d) => d.scenario === scenario).length
+    })
+
     setDebugInfo(
       JSON.stringify(
         {
@@ -45,6 +55,7 @@ export default function Dashboard() {
           categories,
           weeks,
           scenariosInData,
+          countByScenario,
           samplesByCategory,
         },
         null,
@@ -58,6 +69,7 @@ export default function Dashboard() {
     if (!file) return
 
     try {
+      setProcessingStatus((prev) => ({ ...prev, [scenarioName]: "Processing..." }))
       console.log(`Processing file for ${scenarioName}:`, file.name)
       const text = await file.text()
 
@@ -70,6 +82,7 @@ export default function Dashboard() {
 
       if (newTimeSeriesData.length === 0) {
         setError(`No data points were extracted from the file for ${scenarioName}. Please check the file format.`)
+        setProcessingStatus((prev) => ({ ...prev, [scenarioName]: "Error: No data extracted" }))
         return
       }
 
@@ -97,10 +110,12 @@ export default function Dashboard() {
       }
 
       console.log(`Successfully loaded data for ${scenarioName}`)
+      setProcessingStatus((prev) => ({ ...prev, [scenarioName]: `Loaded ${newTimeSeriesData.length} points` }))
       setError(null)
     } catch (err) {
       console.error("Error processing file:", err)
       setError(`Error processing file: ${err instanceof Error ? err.message : String(err)}`)
+      setProcessingStatus((prev) => ({ ...prev, [scenarioName]: "Error processing file" }))
     }
   }
 
@@ -108,6 +123,7 @@ export default function Dashboard() {
   const fetchDataFromUrls = async () => {
     setLoading(true)
     setError(null)
+    setProcessingStatus({})
 
     try {
       // URLs for the different scenarios
@@ -125,30 +141,70 @@ export default function Dashboard() {
       setLoadedScenarios([])
 
       // Fetch and process each scenario
+      const newTimeSeriesData: any[] = []
+      const newAlertsData: any[] = []
+      const successfulScenarios: string[] = []
+      const errors: string[] = []
+
       for (const [scenarioName, url] of Object.entries(urls)) {
-        console.log(`Fetching ${scenarioName} data from URL...`)
-        const response = await fetch(url)
-        const text = await response.text()
+        try {
+          setProcessingStatus((prev) => ({ ...prev, [scenarioName]: "Fetching..." }))
+          console.log(`Fetching ${scenarioName} data from URL...`)
+          const response = await fetch(url)
 
-        console.log(`Processing ${scenarioName} data...`)
-        const { timeSeriesData: newTimeSeriesData, alertsData: newAlertsData } = parseCSVData(text, scenarioName)
+          if (!response.ok) {
+            throw new Error(`Failed to fetch ${scenarioName}: ${response.status} ${response.statusText}`)
+          }
 
-        console.log(
-          `Parsed ${newTimeSeriesData.length} data points and ${newAlertsData.length} alerts for ${scenarioName}`,
-        )
+          const text = await response.text()
+          console.log(`Received ${text.length} bytes for ${scenarioName}`)
 
-        if (newTimeSeriesData.length > 0) {
-          // Update state with new data
-          setTimeSeriesData((prev) => [...prev, ...newTimeSeriesData])
-          setAlertsData((prev) => [...prev, ...newAlertsData])
-          setLoadedScenarios((prev) => [...prev, scenarioName])
-          console.log(`Added ${scenarioName} data to state`)
-        } else {
-          console.warn(`No data points extracted for ${scenarioName}`)
+          // Log a sample of the CSV content
+          console.log(`CSV sample for ${scenarioName}: ${text.substring(0, 200)}...`)
+
+          setProcessingStatus((prev) => ({ ...prev, [scenarioName]: "Parsing..." }))
+          console.log(`Processing ${scenarioName} data...`)
+          const { timeSeriesData: scenarioData, alertsData: scenarioAlerts } = parseCSVData(text, scenarioName)
+
+          console.log(
+            `Parsed ${scenarioData.length} data points and ${scenarioAlerts.length} alerts for ${scenarioName}`,
+          )
+
+          if (scenarioData.length > 0) {
+            newTimeSeriesData.push(...scenarioData)
+            newAlertsData.push(...scenarioAlerts)
+            successfulScenarios.push(scenarioName)
+            setProcessingStatus((prev) => ({
+              ...prev,
+              [scenarioName]: `Loaded ${scenarioData.length} points`,
+            }))
+          } else {
+            errors.push(`No data points were extracted from the file for ${scenarioName}`)
+            setProcessingStatus((prev) => ({
+              ...prev,
+              [scenarioName]: "Error: No data extracted",
+            }))
+          }
+        } catch (err) {
+          console.error(`Error processing ${scenarioName}:`, err)
+          errors.push(`Error processing ${scenarioName}: ${err instanceof Error ? err.message : String(err)}`)
+          setProcessingStatus((prev) => ({
+            ...prev,
+            [scenarioName]: "Error",
+          }))
         }
       }
 
-      console.log("Finished loading all scenarios from URLs")
+      // Update state with all the new data
+      setTimeSeriesData(newTimeSeriesData)
+      setAlertsData(newAlertsData)
+      setLoadedScenarios(successfulScenarios)
+
+      if (errors.length > 0) {
+        setError(errors.join("\n"))
+      }
+
+      console.log("Finished loading scenarios from URLs")
     } catch (err) {
       console.error("Error fetching data from URLs:", err)
       setError(`Error fetching data: ${err instanceof Error ? err.message : String(err)}`)
@@ -197,9 +253,14 @@ export default function Dashboard() {
       <p className="mb-6">S&OP Planning Dashboard</p>
 
       {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-          <p>{error}</p>
-        </div>
+        <Alert variant="destructive" className="mb-4">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            {error.split("\n").map((line, i) => (
+              <div key={i}>{line}</div>
+            ))}
+          </AlertDescription>
+        </Alert>
       )}
 
       <div className="mb-6">
@@ -207,13 +268,9 @@ export default function Dashboard() {
         <p className="mb-4">Upload planning data files for analysis</p>
 
         <div className="mb-4">
-          <button
-            onClick={fetchDataFromUrls}
-            disabled={loading}
-            className="bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded"
-          >
+          <Button onClick={fetchDataFromUrls} disabled={loading} className="bg-green-500 hover:bg-green-600 text-white">
             {loading ? "Loading..." : "Load All Data from URLs"}
-          </button>
+          </Button>
           <p className="text-sm text-gray-600 mt-1">
             Click to automatically load all scenario data from the provided URLs
           </p>
@@ -221,11 +278,20 @@ export default function Dashboard() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           {scenarios.map((scenario) => (
-            <div key={scenario.name} className="border rounded p-4">
+            <div
+              key={scenario.name}
+              className={`border rounded p-4 ${
+                loadedScenarios.includes(scenario.name)
+                  ? "border-green-200 bg-green-50"
+                  : processingStatus[scenario.name]?.includes("Error")
+                    ? "border-red-200 bg-red-50"
+                    : "border-gray-200 bg-gray-50"
+              }`}
+            >
               <h3 className="font-medium">{scenario.name}</h3>
               <p className="text-sm text-gray-600 mb-2">{scenario.description}</p>
 
-              <div className="flex items-center">
+              <div className="flex flex-col gap-2">
                 <input
                   type="file"
                   id={`file-${scenario.name}`}
@@ -235,13 +301,27 @@ export default function Dashboard() {
                 />
                 <label
                   htmlFor={`file-${scenario.name}`}
-                  className="cursor-pointer bg-blue-500 hover:bg-blue-600 text-white py-1 px-3 rounded text-sm"
+                  className="cursor-pointer bg-blue-500 hover:bg-blue-600 text-white py-1 px-3 rounded text-sm text-center"
                 >
                   {loadedScenarios.includes(scenario.name) ? "Reload" : "Upload"}
                 </label>
 
+                {processingStatus[scenario.name] && (
+                  <div
+                    className={`text-xs ${
+                      processingStatus[scenario.name].includes("Error")
+                        ? "text-red-600"
+                        : processingStatus[scenario.name].includes("Loaded")
+                          ? "text-green-600"
+                          : "text-gray-600"
+                    }`}
+                  >
+                    {processingStatus[scenario.name]}
+                  </div>
+                )}
+
                 {loadedScenarios.includes(scenario.name) && (
-                  <span className="ml-2 text-green-600 text-sm">✓ Loaded</span>
+                  <div className="text-green-600 text-sm flex items-center justify-center">✓ Loaded</div>
                 )}
               </div>
             </div>
