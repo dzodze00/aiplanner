@@ -23,11 +23,10 @@ export function parseCSVData(
       console.log(`Line ${i}: ${lines[i].substring(0, 100)}${lines[i].length > 100 ? "..." : ""}`)
     }
 
-    // Try to find the header row - look for keywords in the first 20 lines
+    // Find the header row with "Week / Week Ending"
     let headerRow = -1
     for (let i = 0; i < Math.min(20, lines.length); i++) {
-      const line = lines[i].toLowerCase()
-      if (line.includes("week") || line.includes("requirements") || line.includes("plant")) {
+      if (lines[i].includes("Week / Week Ending")) {
         headerRow = i
         console.log(`Found header row at line ${i}: ${lines[i]}`)
         break
@@ -35,21 +34,40 @@ export function parseCSVData(
     }
 
     if (headerRow === -1) {
-      console.warn("Could not find a standard header row, using first line as header")
-      headerRow = 0
+      console.warn("Could not find header row with 'Week / Week Ending', searching for alternative headers")
+      for (let i = 0; i < Math.min(20, lines.length); i++) {
+        if (lines[i].includes("Week") || lines[i].includes("Period")) {
+          headerRow = i
+          console.log(`Found alternative header row at line ${i}: ${lines[i]}`)
+          break
+        }
+      }
+    }
+
+    if (headerRow === -1) {
+      throw new Error("Could not find a valid header row in the CSV")
     }
 
     // Parse the header to get column indices
     const headers = lines[headerRow].split(",").map((h) => h.trim())
     console.log(`Headers: ${headers.join(", ")}`)
 
+    // Find the index of the "Week / Week Ending" column
+    const weekHeaderIndex = headers.findIndex(
+      (h) => h.includes("Week / Week Ending") || h.includes("Week") || h.includes("Period"),
+    )
+
+    if (weekHeaderIndex === -1) {
+      throw new Error("Could not find Week column in headers")
+    }
+
+    // Find the week columns - these should be numeric columns after the week header
     const weekIndices: number[] = []
     const weekLabels: string[] = []
 
-    // Look for week columns - either numeric or containing "week"
-    for (let i = 0; i < headers.length; i++) {
+    for (let i = weekHeaderIndex + 1; i < headers.length; i++) {
       const header = headers[i].trim()
-      if (header.match(/^\d+$/) || header.toLowerCase().includes("week")) {
+      if (header && !isNaN(Number(header))) {
         weekIndices.push(i)
         weekLabels.push(header)
         console.log(`Found week column at index ${i}: ${header}`)
@@ -57,66 +75,48 @@ export function parseCSVData(
     }
 
     if (weekIndices.length === 0) {
-      console.warn("No standard week columns found, using all numeric columns")
-      // Fallback: use any column with numeric data in the first data row
-      const firstDataRow = lines[headerRow + 1].split(",")
-      for (let i = 0; i < firstDataRow.length; i++) {
-        if (!isNaN(Number(firstDataRow[i].trim()))) {
-          weekIndices.push(i)
-          weekLabels.push(headers[i] || `Column ${i}`)
-          console.log(`Using numeric column at index ${i}: ${headers[i] || `Column ${i}`}`)
-        }
-      }
-    }
-
-    if (weekIndices.length === 0) {
-      throw new Error("Could not identify any data columns in the CSV")
+      throw new Error("Could not find any week columns (numeric headers)")
     }
 
     // Process data rows
-    let currentCategory = ""
-
     for (let i = headerRow + 1; i < lines.length; i++) {
       const line = lines[i].trim()
       if (!line) continue
 
       const cells = line.split(",").map((cell) => cell.trim())
 
-      // Check if this is a category row (first cell is non-numeric and not empty)
-      if (cells[0] && !cells[0].match(/^\d+$/)) {
-        currentCategory = cells[0]
-        console.log(`Found category: ${currentCategory}`)
+      // Get the category from the first column
+      const category = cells[0]
+      if (!category) continue
 
-        // Check if this is an alert category
-        if (currentCategory.toLowerCase().includes("alert")) {
-          let alertType = "General"
+      // Skip header-like rows
+      if (category.includes("Week") || category.includes("Period")) continue
 
-          if (currentCategory.toLowerCase().includes("critical")) {
-            alertType = "Critical"
-          } else if (currentCategory.toLowerCase().includes("capacity")) {
-            alertType = "Capacity"
-          }
+      // Check if this is an alert category
+      if (category.toLowerCase().includes("alert")) {
+        let alertType = "General"
 
-          // Add alert data - use the first numeric value found
-          for (let j = 1; j < cells.length; j++) {
-            if (cells[j] && !isNaN(Number(cells[j]))) {
-              const alertCount = Number(cells[j])
-              alertsData.push({
-                type: alertType,
-                count: alertCount,
-                scenario: scenarioName,
-              })
-              console.log(`Added alert data for ${alertType}: ${alertCount}`)
-              break
-            }
+        if (category.toLowerCase().includes("critical")) {
+          alertType = "Critical"
+        } else if (category.toLowerCase().includes("capacity")) {
+          alertType = "Capacity"
+        }
+
+        // Sum alerts across all weeks
+        let totalAlerts = 0
+        for (const weekIdx of weekIndices) {
+          if (weekIdx < cells.length && cells[weekIdx] && !isNaN(Number(cells[weekIdx]))) {
+            totalAlerts += Number(cells[weekIdx])
           }
         }
-        continue
-      }
 
-      // Skip rows that don't have a category
-      if (!currentCategory) {
-        currentCategory = "Unknown" // Fallback category
+        alertsData.push({
+          type: alertType,
+          count: totalAlerts,
+          scenario: scenarioName,
+        })
+        console.log(`Added alert data for ${alertType}: ${totalAlerts}`)
+        continue
       }
 
       // Process data for each week
@@ -127,7 +127,7 @@ export function parseCSVData(
         if (weekIdx < cells.length && cells[weekIdx] && !isNaN(Number(cells[weekIdx]))) {
           const value = Number(cells[weekIdx])
           timeSeriesData.push({
-            category: currentCategory,
+            category,
             week: weekLabel,
             value,
             scenario: scenarioName,
@@ -137,36 +137,6 @@ export function parseCSVData(
     }
 
     console.log(`Parsed ${timeSeriesData.length} data points and ${alertsData.length} alerts`)
-
-    // If we didn't get any data, try a more aggressive approach
-    if (timeSeriesData.length === 0) {
-      console.warn("No data points found with standard parsing, trying fallback method")
-
-      // Fallback method: assume every row with numbers is data
-      for (let i = headerRow + 1; i < lines.length; i++) {
-        const cells = lines[i].split(",").map((cell) => cell.trim())
-
-        // Skip empty rows
-        if (cells.every((cell) => cell === "")) continue
-
-        // Use first cell as category if it's not numeric
-        const rowCategory = !isNaN(Number(cells[0])) ? "Row " + i : cells[0]
-
-        // Look for numeric values in the row
-        for (let j = 1; j < cells.length; j++) {
-          if (!isNaN(Number(cells[j])) && cells[j] !== "") {
-            timeSeriesData.push({
-              category: rowCategory,
-              week: headers[j] || `Column ${j}`,
-              value: Number(cells[j]),
-              scenario: scenarioName,
-            })
-          }
-        }
-      }
-
-      console.log(`Fallback parsing found ${timeSeriesData.length} data points`)
-    }
 
     return { timeSeriesData, alertsData }
   } catch (error) {
