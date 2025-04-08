@@ -4,10 +4,10 @@ import type React from "react"
 
 import { useState, useEffect, useMemo } from "react"
 import { parseCSVData } from "@/lib/csv-parser"
-import { scenarios, transformForChart, calculateKPIs, categoryGroups } from "@/lib/data-utils"
+import { scenarios, transformForChart, calculateKPIs } from "@/lib/data-utils"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { AlertCircle, BarChart2, LineChart, PieChart } from "lucide-react"
+import { AlertCircle, BarChart2, PieChart, Table2, Sliders, Lightbulb } from "lucide-react"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { TimeSeriesChart } from "@/components/time-series-chart"
@@ -15,10 +15,15 @@ import { KPIDashboard } from "@/components/kpi-dashboard"
 import { ScenarioComparison } from "@/components/scenario-comparison"
 import { EnhancedFilters } from "@/components/enhanced-filters"
 import { DashboardHeader } from "@/components/dashboard-header"
+import { DataSlicer } from "@/components/data-slicer"
+import { PivotTable } from "@/components/pivot-table"
+import { DataTable } from "@/components/data-table"
+import { DataInsights } from "@/components/data-insights"
 
 export default function Dashboard() {
   const [loadedScenarios, setLoadedScenarios] = useState<string[]>([])
   const [timeSeriesData, setTimeSeriesData] = useState<any[]>([])
+  const [filteredData, setFilteredData] = useState<any[]>([])
   const [alertsData, setAlertsData] = useState<any[]>([])
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState<boolean>(false)
@@ -35,6 +40,7 @@ export default function Dashboard() {
     "Supply vs Demand",
     "Capacity Utilization",
   ])
+  const [analysisTab, setAnalysisTab] = useState<string>("slice")
 
   // Derived state
   const categories = useMemo(() => {
@@ -50,13 +56,18 @@ export default function Dashboard() {
   }, [timeSeriesData])
 
   const chartData = useMemo(() => {
-    if (timeSeriesData.length === 0 || !selectedCategory) return []
-    return transformForChart(timeSeriesData, selectedCategory)
-  }, [timeSeriesData, selectedCategory])
+    if (filteredData.length === 0 || !selectedCategory) return []
+    return transformForChart(filteredData, selectedCategory)
+  }, [filteredData, selectedCategory])
 
   const kpis = useMemo(() => {
-    if (timeSeriesData.length === 0) return {}
-    return calculateKPIs(timeSeriesData)
+    if (filteredData.length === 0) return {}
+    return calculateKPIs(filteredData)
+  }, [filteredData])
+
+  // Initialize filtered data when time series data changes
+  useEffect(() => {
+    setFilteredData(timeSeriesData)
   }, [timeSeriesData])
 
   // Initialize selected weeks when data is loaded
@@ -308,159 +319,209 @@ export default function Dashboard() {
         </div>
       ) : (
         <>
-          <EnhancedFilters
-            categories={categories as string[]}
-            selectedCategory={selectedCategory}
-            onCategoryChange={setSelectedCategory}
-            selectedScenarios={selectedScenarios}
-            onScenariosChange={setSelectedScenarios}
-            weeks={weeks as string[]}
-            selectedWeeks={selectedWeeks}
-            onWeeksChange={setSelectedWeeks}
-            selectedMetrics={selectedMetrics}
-            onMetricsChange={setSelectedMetrics}
-            availableMetrics={Object.keys(kpis)}
-          />
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className="w-full mb-6">
+              <TabsTrigger value="overview" className="flex items-center">
+                <BarChart2 className="h-4 w-4 mr-2" />
+                Overview
+              </TabsTrigger>
+              <TabsTrigger value="analysis" className="flex items-center">
+                <Sliders className="h-4 w-4 mr-2" />
+                Data Analysis
+              </TabsTrigger>
+              <TabsTrigger value="insights" className="flex items-center">
+                <Lightbulb className="h-4 w-4 mr-2" />
+                Insights
+              </TabsTrigger>
+            </TabsList>
 
-          <div className="mt-6">
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="w-full mb-6">
-                <TabsTrigger value="overview" className="flex items-center">
-                  <BarChart2 className="h-4 w-4 mr-2" />
-                  Overview
-                </TabsTrigger>
-                <TabsTrigger value="time-series" className="flex items-center">
-                  <LineChart className="h-4 w-4 mr-2" />
-                  Time Series
-                </TabsTrigger>
-                <TabsTrigger value="comparison" className="flex items-center">
-                  <PieChart className="h-4 w-4 mr-2" />
-                  Scenario Comparison
-                </TabsTrigger>
-              </TabsList>
+            <TabsContent value="overview" className="mt-0">
+              <EnhancedFilters
+                categories={categories as string[]}
+                selectedCategory={selectedCategory}
+                onCategoryChange={setSelectedCategory}
+                selectedScenarios={selectedScenarios}
+                onScenariosChange={setSelectedScenarios}
+                weeks={weeks as string[]}
+                selectedWeeks={selectedWeeks}
+                onWeeksChange={setSelectedWeeks}
+                selectedMetrics={selectedMetrics}
+                onMetricsChange={setSelectedMetrics}
+                availableMetrics={Object.keys(kpis)}
+              />
 
-              <TabsContent value="overview" className="mt-0">
-                <div className="space-y-6">
-                  <KPIDashboard kpis={kpis} selectedScenarios={selectedScenarios} />
+              <div className="space-y-6 mt-6">
+                <KPIDashboard kpis={kpis} selectedScenarios={selectedScenarios} />
 
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Time Series Analysis</CardTitle>
-                      <CardDescription>
-                        Analyzing {selectedCategory} across {selectedScenarios.length} scenarios
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <TimeSeriesChart
-                        data={chartData}
-                        selectedScenarios={selectedScenarios}
-                        title={selectedCategory}
-                      />
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Scenario Comparison</CardTitle>
-                      <CardDescription>
-                        Comparing key metrics across {selectedScenarios.length} scenarios
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <ScenarioComparison
-                        data={kpis}
-                        selectedScenarios={selectedScenarios}
-                        selectedMetrics={selectedMetrics.slice(0, 5)}
-                      />
-                    </CardContent>
-                  </Card>
-                </div>
-              </TabsContent>
-
-              <TabsContent value="time-series" className="mt-0">
                 <Card>
                   <CardHeader>
                     <CardTitle>Time Series Analysis</CardTitle>
-                    <CardDescription>Detailed time series analysis for {selectedCategory}</CardDescription>
+                    <CardDescription>
+                      Analyzing {selectedCategory} across {selectedScenarios.length} scenarios
+                    </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <TimeSeriesChart
-                      data={chartData}
-                      selectedScenarios={selectedScenarios}
-                      title={selectedCategory}
-                      yAxisLabel="Value"
-                    />
+                    <TimeSeriesChart data={chartData} selectedScenarios={selectedScenarios} title={selectedCategory} />
                   </CardContent>
                 </Card>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-                  {categoryGroups.slice(0, 4).map((group) => {
-                    const category = group.categories.find((c) => categories.includes(c)) || group.categories[0]
-                    const categoryData = transformForChart(timeSeriesData, category)
-
-                    return (
-                      <Card key={group.name}>
-                        <CardHeader className="pb-2">
-                          <CardTitle className="text-base">{group.name}</CardTitle>
-                          <CardDescription className="text-xs">{category}</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                          <TimeSeriesChart data={categoryData} selectedScenarios={selectedScenarios} />
-                        </CardContent>
-                      </Card>
-                    )
-                  })}
-                </div>
-              </TabsContent>
-
-              <TabsContent value="comparison" className="mt-0">
                 <Card>
                   <CardHeader>
                     <CardTitle>Scenario Comparison</CardTitle>
-                    <CardDescription>Compare key metrics across different planning scenarios</CardDescription>
+                    <CardDescription>Comparing key metrics across {selectedScenarios.length} scenarios</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <ScenarioComparison
                       data={kpis}
                       selectedScenarios={selectedScenarios}
-                      selectedMetrics={selectedMetrics}
-                      title="Key Performance Indicators"
+                      selectedMetrics={selectedMetrics.slice(0, 5)}
                     />
                   </CardContent>
                 </Card>
+              </div>
+            </TabsContent>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+            <TabsContent value="analysis" className="mt-0">
+              <Tabs value={analysisTab} onValueChange={setAnalysisTab}>
+                <TabsList className="w-full mb-6">
+                  <TabsTrigger value="slice" className="flex items-center">
+                    <Sliders className="h-4 w-4 mr-2" />
+                    Slice & Dice
+                  </TabsTrigger>
+                  <TabsTrigger value="pivot" className="flex items-center">
+                    <PieChart className="h-4 w-4 mr-2" />
+                    Pivot Analysis
+                  </TabsTrigger>
+                  <TabsTrigger value="table" className="flex items-center">
+                    <Table2 className="h-4 w-4 mr-2" />
+                    Data Table
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="slice" className="mt-0">
+                  <DataSlicer
+                    timeSeriesData={timeSeriesData}
+                    categories={categories as string[]}
+                    onFilteredDataChange={setFilteredData}
+                  />
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-base">Filtered Time Series</CardTitle>
+                        <CardDescription className="text-xs">
+                          {filteredData.length} of {timeSeriesData.length} data points
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <TimeSeriesChart
+                          data={chartData}
+                          selectedScenarios={selectedScenarios}
+                          title={selectedCategory}
+                        />
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-base">Filtered Metrics</CardTitle>
+                        <CardDescription className="text-xs">Key metrics based on filtered data</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <ScenarioComparison
+                          data={kpis}
+                          selectedScenarios={selectedScenarios}
+                          selectedMetrics={selectedMetrics.slice(0, 3)}
+                        />
+                      </CardContent>
+                    </Card>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="pivot" className="mt-0">
+                  <PivotTable data={filteredData} />
+                </TabsContent>
+
+                <TabsContent value="table" className="mt-0">
+                  <DataTable data={filteredData} />
+                </TabsContent>
+              </Tabs>
+            </TabsContent>
+
+            <TabsContent value="insights" className="mt-0">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="md:col-span-2">
+                  <DataInsights data={filteredData} kpis={kpis} />
+                </div>
+                <div>
                   <Card>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-base">Supply vs Demand</CardTitle>
-                      <CardDescription className="text-xs">Comparing supply and demand metrics</CardDescription>
+                    <CardHeader>
+                      <CardTitle>Data Summary</CardTitle>
+                      <CardDescription>Overview of your dataset</CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <ScenarioComparison
-                        data={kpis}
-                        selectedScenarios={selectedScenarios}
-                        selectedMetrics={["Fill Rate", "Supply/Demand Ratio"]}
-                      />
-                    </CardContent>
-                  </Card>
+                      <div className="space-y-4">
+                        <div>
+                          <h3 className="text-sm font-medium mb-1">Data Points</h3>
+                          <p className="text-2xl font-bold">{filteredData.length.toLocaleString()}</p>
+                          <p className="text-xs text-gray-500">
+                            {((filteredData.length / timeSeriesData.length) * 100).toFixed(1)}% of total data
+                          </p>
+                        </div>
 
-                  <Card>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-base">Inventory & Production</CardTitle>
-                      <CardDescription className="text-xs">Comparing inventory and production metrics</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <ScenarioComparison
-                        data={kpis}
-                        selectedScenarios={selectedScenarios}
-                        selectedMetrics={["Inventory Level", "Production Orders"]}
-                      />
+                        <div>
+                          <h3 className="text-sm font-medium mb-1">Categories</h3>
+                          <p className="text-2xl font-bold">
+                            {Array.from(new Set(filteredData.map((d) => d.category))).length}
+                          </p>
+                        </div>
+
+                        <div>
+                          <h3 className="text-sm font-medium mb-1">Scenarios</h3>
+                          <p className="text-2xl font-bold">
+                            {Array.from(new Set(filteredData.map((d) => d.scenario))).length}
+                          </p>
+                        </div>
+
+                        <div>
+                          <h3 className="text-sm font-medium mb-1">Time Periods</h3>
+                          <p className="text-2xl font-bold">
+                            {Array.from(new Set(filteredData.map((d) => d.week))).length}
+                          </p>
+                        </div>
+
+                        <div className="pt-2 border-t">
+                          <h3 className="text-sm font-medium mb-2">Value Distribution</h3>
+                          <div className="space-y-1 text-sm">
+                            <div className="flex justify-between">
+                              <span>Minimum:</span>
+                              <span className="font-medium">
+                                {Math.min(...filteredData.map((d) => d.value)).toLocaleString()}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Maximum:</span>
+                              <span className="font-medium">
+                                {Math.max(...filteredData.map((d) => d.value)).toLocaleString()}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Average:</span>
+                              <span className="font-medium">
+                                {(
+                                  filteredData.reduce((sum, d) => sum + d.value, 0) / filteredData.length
+                                ).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </CardContent>
                   </Card>
                 </div>
-              </TabsContent>
-            </Tabs>
-          </div>
+              </div>
+            </TabsContent>
+          </Tabs>
         </>
       )}
     </div>
