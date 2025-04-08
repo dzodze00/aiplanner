@@ -1,37 +1,33 @@
 "use client"
 
-import type React from "react"
-
 import { useState, useEffect, useMemo } from "react"
 import { parseCSVData } from "@/lib/csv-parser"
-import { scenarios, transformForChart, calculateKPIs } from "@/lib/data-utils"
+import { transformForChart, calculateKPIs, categoryGroups, scenarios as allScenarios } from "@/lib/data-utils"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { AlertCircle, BarChart2, PieChart, Table2, Sliders, Lightbulb } from "lucide-react"
+import { AlertCircle, BarChart2, LineChart, PieChart, Table2, ArrowRight, CheckCircle } from "lucide-react"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { TimeSeriesChart } from "@/components/time-series-chart"
 import { KPIDashboard } from "@/components/kpi-dashboard"
 import { ScenarioComparison } from "@/components/scenario-comparison"
 import { EnhancedFilters } from "@/components/enhanced-filters"
 import { DashboardHeader } from "@/components/dashboard-header"
-import { DataSlicer } from "@/components/data-slicer"
-import { PivotTable } from "@/components/pivot-table"
-import { DataTable } from "@/components/data-table"
-import { DataInsights } from "@/components/data-insights"
+import { FileUploader } from "@/components/file-uploader"
 
 export default function Dashboard() {
+  // Upload stage state
+  const [isUploadStage, setIsUploadStage] = useState(true)
   const [loadedScenarios, setLoadedScenarios] = useState<string[]>([])
   const [timeSeriesData, setTimeSeriesData] = useState<any[]>([])
-  const [filteredData, setFilteredData] = useState<any[]>([])
   const [alertsData, setAlertsData] = useState<any[]>([])
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState<boolean>(false)
-  const [processingStatus, setProcessingStatus] = useState<Record<string, string>>({})
-  const [rawCsvData, setRawCsvData] = useState<Record<string, string>>({})
+
+  // Analysis stage state
   const [activeTab, setActiveTab] = useState<string>("overview")
   const [selectedCategory, setSelectedCategory] = useState<string>("Fill Rate")
-  const [selectedScenarios, setSelectedScenarios] = useState<string[]>(scenarios.map((s) => s.name))
+  const [selectedScenarios, setSelectedScenarios] = useState<string[]>([])
   const [selectedWeeks, setSelectedWeeks] = useState<string[]>([])
   const [selectedMetrics, setSelectedMetrics] = useState<string[]>([
     "Fill Rate",
@@ -40,7 +36,6 @@ export default function Dashboard() {
     "Supply vs Demand",
     "Capacity Utilization",
   ])
-  const [analysisTab, setAnalysisTab] = useState<string>("slice")
 
   // Derived state
   const categories = useMemo(() => {
@@ -55,6 +50,15 @@ export default function Dashboard() {
     })
   }, [timeSeriesData])
 
+  // Filter data based on selections
+  const filteredData = useMemo(() => {
+    return timeSeriesData.filter(
+      (d) =>
+        (selectedScenarios.length === 0 || selectedScenarios.includes(d.scenario)) &&
+        (selectedWeeks.length === 0 || selectedWeeks.includes(d.week)),
+    )
+  }, [timeSeriesData, selectedScenarios, selectedWeeks])
+
   const chartData = useMemo(() => {
     if (filteredData.length === 0 || !selectedCategory) return []
     return transformForChart(filteredData, selectedCategory)
@@ -65,24 +69,24 @@ export default function Dashboard() {
     return calculateKPIs(filteredData)
   }, [filteredData])
 
-  // Initialize filtered data when time series data changes
+  // Initialize selected scenarios when transitioning to analysis stage
   useEffect(() => {
-    setFilteredData(timeSeriesData)
-  }, [timeSeriesData])
+    if (!isUploadStage && selectedScenarios.length === 0) {
+      setSelectedScenarios([...loadedScenarios])
+    }
+  }, [isUploadStage, loadedScenarios, selectedScenarios])
 
-  // Initialize selected weeks when data is loaded
+  // Initialize selected weeks when transitioning to analysis stage
   useEffect(() => {
-    if (weeks.length > 0 && selectedWeeks.length === 0) {
+    if (!isUploadStage && weeks.length > 0 && selectedWeeks.length === 0) {
       setSelectedWeeks([...weeks])
     }
-  }, [weeks, selectedWeeks])
+  }, [isUploadStage, weeks, selectedWeeks])
 
   // Function to fetch data directly from URLs
   const fetchDataFromUrls = async () => {
     setLoading(true)
     setError(null)
-    setProcessingStatus({})
-    setRawCsvData({})
 
     try {
       // URLs for the different scenarios
@@ -107,7 +111,6 @@ export default function Dashboard() {
 
       for (const [scenarioName, url] of Object.entries(urls)) {
         try {
-          setProcessingStatus((prev) => ({ ...prev, [scenarioName]: "Fetching..." }))
           console.log(`Fetching ${scenarioName} data from URL...`)
           const response = await fetch(url)
 
@@ -118,10 +121,6 @@ export default function Dashboard() {
           const text = await response.text()
           console.log(`Received ${text.length} bytes for ${scenarioName}`)
 
-          // Store the raw CSV data for inspection
-          setRawCsvData((prev) => ({ ...prev, [scenarioName]: text }))
-
-          setProcessingStatus((prev) => ({ ...prev, [scenarioName]: "Parsing..." }))
           console.log(`Processing ${scenarioName} data...`)
           const { timeSeriesData: scenarioData, alertsData: scenarioAlerts } = parseCSVData(text, scenarioName)
 
@@ -133,24 +132,12 @@ export default function Dashboard() {
             newTimeSeriesData.push(...scenarioData)
             newAlertsData.push(...scenarioAlerts)
             successfulScenarios.push(scenarioName)
-            setProcessingStatus((prev) => ({
-              ...prev,
-              [scenarioName]: `Loaded ${scenarioData.length} points`,
-            }))
           } else {
             errors.push(`No data points were extracted from the file for ${scenarioName}`)
-            setProcessingStatus((prev) => ({
-              ...prev,
-              [scenarioName]: "Error: No data extracted",
-            }))
           }
         } catch (err) {
           console.error(`Error processing ${scenarioName}:`, err)
           errors.push(`Error processing ${scenarioName}: ${err instanceof Error ? err.message : String(err)}`)
-          setProcessingStatus((prev) => ({
-            ...prev,
-            [scenarioName]: "Error",
-          }))
         }
       }
 
@@ -172,59 +159,37 @@ export default function Dashboard() {
     }
   }
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>, scenarioName: string) => {
-    const file = event.target.files?.[0]
-    if (!file) return
+  const handleDataLoaded = (scenarioName: string, newTimeSeriesData: any[], newAlertsData: any[]) => {
+    // Update time series data
+    setTimeSeriesData((prev) => {
+      const filtered = prev.filter((d) => d.scenario !== scenarioName)
+      return [...filtered, ...newTimeSeriesData]
+    })
 
-    try {
-      setProcessingStatus((prev) => ({ ...prev, [scenarioName]: "Processing..." }))
-      console.log(`Processing file for ${scenarioName}:`, file.name)
-      const text = await file.text()
+    // Update alerts data
+    setAlertsData((prev) => {
+      const filtered = prev.filter((d) => d.scenario !== scenarioName)
+      return [...filtered, ...newAlertsData]
+    })
 
-      // Store the raw CSV data for inspection
-      setRawCsvData((prev) => ({ ...prev, [scenarioName]: text }))
-
-      const { timeSeriesData: newTimeSeriesData, alertsData: newAlertsData } = parseCSVData(text, scenarioName)
-
-      console.log(`Parsed ${newTimeSeriesData.length} data points and ${newAlertsData.length} alerts`)
-
-      if (newTimeSeriesData.length === 0) {
-        setError(`No data points were extracted from the file for ${scenarioName}. Please check the file format.`)
-        setProcessingStatus((prev) => ({ ...prev, [scenarioName]: "Error: No data extracted" }))
-        return
-      }
-
-      // Update state with new data
-      setTimeSeriesData((prev) => {
-        const filtered = prev.filter((d) => d.scenario !== scenarioName)
-        const combined = [...filtered, ...newTimeSeriesData]
-        console.log(`Updated timeSeriesData, new length: ${combined.length}`)
-        return combined
-      })
-
-      setAlertsData((prev) => {
-        const filtered = prev.filter((d) => d.scenario !== scenarioName)
-        const combined = [...filtered, ...newAlertsData]
-        console.log(`Updated alertsData, new length: ${combined.length}`)
-        return combined
-      })
-
-      if (!loadedScenarios.includes(scenarioName)) {
-        setLoadedScenarios((prev) => {
-          const updated = [...prev, scenarioName]
-          console.log(`Updated loadedScenarios: ${updated.join(", ")}`)
-          return updated
-        })
-      }
-
-      console.log(`Successfully loaded data for ${scenarioName}`)
-      setProcessingStatus((prev) => ({ ...prev, [scenarioName]: `Loaded ${newTimeSeriesData.length} points` }))
-      setError(null)
-    } catch (err) {
-      console.error("Error processing file:", err)
-      setError(`Error processing file: ${err instanceof Error ? err.message : String(err)}`)
-      setProcessingStatus((prev) => ({ ...prev, [scenarioName]: "Error processing file" }))
+    // Update loaded scenarios
+    if (!loadedScenarios.includes(scenarioName)) {
+      setLoadedScenarios((prev) => [...prev, scenarioName])
     }
+  }
+
+  const handleStartAnalysis = () => {
+    if (loadedScenarios.length === 0) {
+      setError("Please upload at least one scenario file before starting analysis.")
+      return
+    }
+
+    setIsUploadStage(false)
+    setSelectedScenarios(loadedScenarios)
+  }
+
+  const handleBackToUpload = () => {
+    setIsUploadStage(true)
   }
 
   return (
@@ -242,115 +207,104 @@ export default function Dashboard() {
         </Alert>
       )}
 
-      {timeSeriesData.length === 0 ? (
-        <div className="mb-6">
+      {isUploadStage ? (
+        // Upload Stage
+        <div className="space-y-6">
+          <FileUploader onDataLoaded={handleDataLoaded} loadedScenarios={loadedScenarios} />
+
           <Card>
             <CardHeader>
-              <CardTitle>Data Upload</CardTitle>
-              <CardDescription>Upload planning data files for analysis</CardDescription>
+              <CardTitle>Upload Status</CardTitle>
+              <CardDescription>
+                {loadedScenarios.length === 0
+                  ? "Please upload scenario files to begin analysis"
+                  : `${loadedScenarios.length} of ${allScenarios.length} scenarios loaded`}
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="mb-4">
-                <Button
-                  onClick={fetchDataFromUrls}
-                  disabled={loading}
-                  className="bg-blue-600 hover:bg-blue-700 text-white"
-                >
-                  {loading ? "Loading..." : "Load All Data from URLs"}
-                </Button>
-                <p className="text-sm text-gray-600 mt-1">
-                  Click to automatically load all scenario data from the provided URLs
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                {scenarios.map((scenario) => (
-                  <div
-                    key={scenario.name}
-                    className={`border rounded p-4 ${
-                      loadedScenarios.includes(scenario.name)
-                        ? "border-green-200 bg-green-50"
-                        : processingStatus[scenario.name]?.includes("Error")
-                          ? "border-red-200 bg-red-50"
-                          : "border-gray-200 bg-gray-50"
-                    }`}
-                  >
-                    <h3 className="font-medium">{scenario.name}</h3>
-                    <p className="text-sm text-gray-600 mb-2">{scenario.description}</p>
-
-                    <div className="flex flex-col gap-2">
-                      <input
-                        type="file"
-                        id={`file-${scenario.name}`}
-                        accept=".csv"
-                        className="hidden"
-                        onChange={(e) => handleFileUpload(e, scenario.name)}
-                      />
-                      <label
-                        htmlFor={`file-${scenario.name}`}
-                        className="cursor-pointer bg-blue-500 hover:bg-blue-600 text-white py-1 px-3 rounded text-sm text-center"
-                      >
-                        {loadedScenarios.includes(scenario.name) ? "Reload" : "Upload"}
-                      </label>
-
-                      {processingStatus[scenario.name] && (
-                        <div
-                          className={`text-xs ${
-                            processingStatus[scenario.name].includes("Error")
-                              ? "text-red-600"
-                              : processingStatus[scenario.name].includes("Loaded")
-                                ? "text-green-600"
-                                : "text-gray-600"
-                          }`}
-                        >
-                          {processingStatus[scenario.name]}
-                        </div>
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                {allScenarios.map((scenario) => {
+                  const isLoaded = loadedScenarios.includes(scenario.name)
+                  return (
+                    <div
+                      key={scenario.name}
+                      className={`p-4 border rounded-lg flex items-center gap-2 ${
+                        isLoaded ? "border-green-200 bg-green-50" : "border-gray-200 bg-gray-50"
+                      }`}
+                    >
+                      {isLoaded ? (
+                        <CheckCircle className="h-5 w-5 text-green-600" />
+                      ) : (
+                        <div className="h-5 w-5 rounded-full border-2 border-gray-300" />
                       )}
-
-                      {loadedScenarios.includes(scenario.name) && (
-                        <div className="text-green-600 text-sm flex items-center justify-center">✓ Loaded</div>
-                      )}
+                      <div>
+                        <p className="font-medium">{scenario.name}</p>
+                        <p className="text-xs text-gray-500">{scenario.description}</p>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </CardContent>
+            <CardFooter className="flex justify-between">
+              <Button variant="outline" onClick={fetchDataFromUrls} disabled={loading}>
+                {loading ? "Loading..." : "Load All from URLs"}
+              </Button>
+              <Button
+                onClick={handleStartAnalysis}
+                disabled={loadedScenarios.length === 0}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                Start Analysis <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            </CardFooter>
           </Card>
         </div>
       ) : (
+        // Analysis Stage
         <>
+          <div className="mb-4">
+            <Button variant="outline" onClick={handleBackToUpload} className="mb-4">
+              Back to Upload
+            </Button>
+          </div>
+
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="w-full mb-6">
               <TabsTrigger value="overview" className="flex items-center">
                 <BarChart2 className="h-4 w-4 mr-2" />
                 Overview
               </TabsTrigger>
-              <TabsTrigger value="analysis" className="flex items-center">
-                <Sliders className="h-4 w-4 mr-2" />
-                Data Analysis
+              <TabsTrigger value="timeSeries" className="flex items-center">
+                <LineChart className="h-4 w-4 mr-2" />
+                Time Series
               </TabsTrigger>
-              <TabsTrigger value="insights" className="flex items-center">
-                <Lightbulb className="h-4 w-4 mr-2" />
-                Insights
+              <TabsTrigger value="comparison" className="flex items-center">
+                <PieChart className="h-4 w-4 mr-2" />
+                Scenario Comparison
+              </TabsTrigger>
+              <TabsTrigger value="rawData" className="flex items-center">
+                <Table2 className="h-4 w-4 mr-2" />
+                Raw Data
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="overview" className="mt-0">
-              <EnhancedFilters
-                categories={categories as string[]}
-                selectedCategory={selectedCategory}
-                onCategoryChange={setSelectedCategory}
-                selectedScenarios={selectedScenarios}
-                onScenariosChange={setSelectedScenarios}
-                weeks={weeks as string[]}
-                selectedWeeks={selectedWeeks}
-                onWeeksChange={setSelectedWeeks}
-                selectedMetrics={selectedMetrics}
-                onMetricsChange={setSelectedMetrics}
-                availableMetrics={Object.keys(kpis)}
-              />
+            <EnhancedFilters
+              categories={categories as string[]}
+              selectedCategory={selectedCategory}
+              onCategoryChange={setSelectedCategory}
+              selectedScenarios={selectedScenarios}
+              onScenariosChange={setSelectedScenarios}
+              weeks={weeks as string[]}
+              selectedWeeks={selectedWeeks}
+              onWeeksChange={setSelectedWeeks}
+              selectedMetrics={selectedMetrics}
+              onMetricsChange={setSelectedMetrics}
+              availableMetrics={Object.keys(kpis)}
+            />
 
-              <div className="space-y-6 mt-6">
+            <TabsContent value="overview" className="mt-6">
+              <div className="space-y-6">
                 <KPIDashboard kpis={kpis} selectedScenarios={selectedScenarios} />
 
                 <Card>
@@ -381,145 +335,129 @@ export default function Dashboard() {
               </div>
             </TabsContent>
 
-            <TabsContent value="analysis" className="mt-0">
-              <Tabs value={analysisTab} onValueChange={setAnalysisTab}>
-                <TabsList className="w-full mb-6">
-                  <TabsTrigger value="slice" className="flex items-center">
-                    <Sliders className="h-4 w-4 mr-2" />
-                    Slice & Dice
-                  </TabsTrigger>
-                  <TabsTrigger value="pivot" className="flex items-center">
-                    <PieChart className="h-4 w-4 mr-2" />
-                    Pivot Analysis
-                  </TabsTrigger>
-                  <TabsTrigger value="table" className="flex items-center">
-                    <Table2 className="h-4 w-4 mr-2" />
-                    Data Table
-                  </TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="slice" className="mt-0">
-                  <DataSlicer
-                    timeSeriesData={timeSeriesData}
-                    categories={categories as string[]}
-                    onFilteredDataChange={setFilteredData}
+            <TabsContent value="timeSeries" className="mt-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Time Series Analysis</CardTitle>
+                  <CardDescription>Detailed time series analysis for {selectedCategory}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <TimeSeriesChart
+                    data={chartData}
+                    selectedScenarios={selectedScenarios}
+                    title={selectedCategory}
+                    yAxisLabel="Value"
                   />
+                </CardContent>
+              </Card>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-                    <Card>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                {categoryGroups.slice(0, 4).map((group) => {
+                  const category = group.categories.find((c) => categories.includes(c)) || group.categories[0]
+                  const categoryData = transformForChart(filteredData, category)
+
+                  return (
+                    <Card key={group.name}>
                       <CardHeader className="pb-2">
-                        <CardTitle className="text-base">Filtered Time Series</CardTitle>
-                        <CardDescription className="text-xs">
-                          {filteredData.length} of {timeSeriesData.length} data points
-                        </CardDescription>
+                        <CardTitle className="text-base">{group.name}</CardTitle>
+                        <CardDescription className="text-xs">{category}</CardDescription>
                       </CardHeader>
                       <CardContent>
-                        <TimeSeriesChart
-                          data={chartData}
-                          selectedScenarios={selectedScenarios}
-                          title={selectedCategory}
-                        />
+                        <TimeSeriesChart data={categoryData} selectedScenarios={selectedScenarios} />
                       </CardContent>
                     </Card>
-
-                    <Card>
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-base">Filtered Metrics</CardTitle>
-                        <CardDescription className="text-xs">Key metrics based on filtered data</CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <ScenarioComparison
-                          data={kpis}
-                          selectedScenarios={selectedScenarios}
-                          selectedMetrics={selectedMetrics.slice(0, 3)}
-                        />
-                      </CardContent>
-                    </Card>
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="pivot" className="mt-0">
-                  <PivotTable data={filteredData} />
-                </TabsContent>
-
-                <TabsContent value="table" className="mt-0">
-                  <DataTable data={filteredData} />
-                </TabsContent>
-              </Tabs>
+                  )
+                })}
+              </div>
             </TabsContent>
 
-            <TabsContent value="insights" className="mt-0">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="md:col-span-2">
-                  <DataInsights data={filteredData} kpis={kpis} />
-                </div>
-                <div>
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Data Summary</CardTitle>
-                      <CardDescription>Overview of your dataset</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-4">
-                        <div>
-                          <h3 className="text-sm font-medium mb-1">Data Points</h3>
-                          <p className="text-2xl font-bold">{filteredData.length.toLocaleString()}</p>
-                          <p className="text-xs text-gray-500">
-                            {((filteredData.length / timeSeriesData.length) * 100).toFixed(1)}% of total data
-                          </p>
-                        </div>
+            <TabsContent value="comparison" className="mt-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Scenario Comparison</CardTitle>
+                  <CardDescription>Compare key metrics across different planning scenarios</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ScenarioComparison
+                    data={kpis}
+                    selectedScenarios={selectedScenarios}
+                    selectedMetrics={selectedMetrics}
+                    title="Key Performance Indicators"
+                  />
+                </CardContent>
+              </Card>
 
-                        <div>
-                          <h3 className="text-sm font-medium mb-1">Categories</h3>
-                          <p className="text-2xl font-bold">
-                            {Array.from(new Set(filteredData.map((d) => d.category))).length}
-                          </p>
-                        </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">Supply vs Demand</CardTitle>
+                    <CardDescription className="text-xs">Comparing supply and demand metrics</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <ScenarioComparison
+                      data={kpis}
+                      selectedScenarios={selectedScenarios}
+                      selectedMetrics={["Fill Rate", "Supply/Demand Ratio"].filter((m) =>
+                        Object.keys(kpis).includes(m),
+                      )}
+                    />
+                  </CardContent>
+                </Card>
 
-                        <div>
-                          <h3 className="text-sm font-medium mb-1">Scenarios</h3>
-                          <p className="text-2xl font-bold">
-                            {Array.from(new Set(filteredData.map((d) => d.scenario))).length}
-                          </p>
-                        </div>
-
-                        <div>
-                          <h3 className="text-sm font-medium mb-1">Time Periods</h3>
-                          <p className="text-2xl font-bold">
-                            {Array.from(new Set(filteredData.map((d) => d.week))).length}
-                          </p>
-                        </div>
-
-                        <div className="pt-2 border-t">
-                          <h3 className="text-sm font-medium mb-2">Value Distribution</h3>
-                          <div className="space-y-1 text-sm">
-                            <div className="flex justify-between">
-                              <span>Minimum:</span>
-                              <span className="font-medium">
-                                {Math.min(...filteredData.map((d) => d.value)).toLocaleString()}
-                              </span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span>Maximum:</span>
-                              <span className="font-medium">
-                                {Math.max(...filteredData.map((d) => d.value)).toLocaleString()}
-                              </span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span>Average:</span>
-                              <span className="font-medium">
-                                {(
-                                  filteredData.reduce((sum, d) => sum + d.value, 0) / filteredData.length
-                                ).toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">Inventory & Production</CardTitle>
+                    <CardDescription className="text-xs">Comparing inventory and production metrics</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <ScenarioComparison
+                      data={kpis}
+                      selectedScenarios={selectedScenarios}
+                      selectedMetrics={["Inventory Level", "Production Orders"].filter((m) =>
+                        Object.keys(kpis).includes(m),
+                      )}
+                    />
+                  </CardContent>
+                </Card>
               </div>
+            </TabsContent>
+
+            <TabsContent value="rawData" className="mt-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Raw Data</CardTitle>
+                  <CardDescription>View the raw data points for the selected filters</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="rounded-md border overflow-auto max-h-[500px]">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b">
+                          <th className="p-2 text-left font-medium">Category</th>
+                          <th className="p-2 text-left font-medium">Scenario</th>
+                          <th className="p-2 text-left font-medium">Week</th>
+                          <th className="p-2 text-right font-medium">Value</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredData.slice(0, 100).map((item, index) => (
+                          <tr key={index} className="border-b hover:bg-gray-50">
+                            <td className="p-2">{item.category}</td>
+                            <td className="p-2">{item.scenario}</td>
+                            <td className="p-2">{item.week}</td>
+                            <td className="p-2 text-right">{item.value.toLocaleString()}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {filteredData.length > 100 && (
+                      <div className="p-2 text-center text-sm text-gray-500">
+                        Showing 100 of {filteredData.length} rows
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
             </TabsContent>
           </Tabs>
         </>
