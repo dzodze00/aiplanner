@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { parseCSVData } from "@/lib/csv-parser"
 import { scenarios } from "@/lib/data-utils"
 
@@ -11,6 +11,30 @@ export default function Dashboard() {
   const [timeSeriesData, setTimeSeriesData] = useState<any[]>([])
   const [alertsData, setAlertsData] = useState<any[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [debugInfo, setDebugInfo] = useState<string>("")
+
+  // Add useEffect to log state changes
+  useEffect(() => {
+    console.log("State updated:", {
+      loadedScenarios,
+      timeSeriesDataLength: timeSeriesData.length,
+      alertsDataLength: alertsData.length,
+    })
+
+    setDebugInfo(
+      JSON.stringify(
+        {
+          loadedScenarios,
+          timeSeriesDataLength: timeSeriesData.length,
+          alertsDataLength: alertsData.length,
+          categories: Array.from(new Set(timeSeriesData.map((d) => d.category))),
+          scenarios: Array.from(new Set(timeSeriesData.map((d) => d.scenario))),
+        },
+        null,
+        2,
+      ),
+    )
+  }, [loadedScenarios, timeSeriesData, alertsData])
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>, scenarioName: string) => {
     const file = event.target.files?.[0]
@@ -27,19 +51,32 @@ export default function Dashboard() {
 
       console.log(`Parsed ${newTimeSeriesData.length} data points and ${newAlertsData.length} alerts`)
 
+      if (newTimeSeriesData.length === 0) {
+        setError(`No data points were extracted from the file for ${scenarioName}. Please check the file format.`)
+        return
+      }
+
       // Update state with new data
       setTimeSeriesData((prev) => {
         const filtered = prev.filter((d) => d.scenario !== scenarioName)
-        return [...filtered, ...newTimeSeriesData]
+        const combined = [...filtered, ...newTimeSeriesData]
+        console.log(`Updated timeSeriesData, new length: ${combined.length}`)
+        return combined
       })
 
       setAlertsData((prev) => {
         const filtered = prev.filter((d) => d.scenario !== scenarioName)
-        return [...filtered, ...newAlertsData]
+        const combined = [...filtered, ...newAlertsData]
+        console.log(`Updated alertsData, new length: ${combined.length}`)
+        return combined
       })
 
       if (!loadedScenarios.includes(scenarioName)) {
-        setLoadedScenarios((prev) => [...prev, scenarioName])
+        setLoadedScenarios((prev) => {
+          const updated = [...prev, scenarioName]
+          console.log(`Updated loadedScenarios: ${updated.join(", ")}`)
+          return updated
+        })
       }
 
       console.log(`Successfully loaded data for ${scenarioName}`)
@@ -92,6 +129,28 @@ export default function Dashboard() {
               </div>
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* Always show this section for debugging */}
+      <div className="mt-8 border rounded p-4 bg-gray-50">
+        <h2 className="text-xl font-semibold mb-4">Debug Information</h2>
+        <p>Loaded Scenarios: {loadedScenarios.join(", ") || "None"}</p>
+        <p>Time Series Data Points: {timeSeriesData.length}</p>
+        <p>Alerts Data Points: {alertsData.length}</p>
+
+        {timeSeriesData.length > 0 && (
+          <div className="mt-4">
+            <h3 className="font-medium mb-2">Sample Data Point:</h3>
+            <pre className="bg-gray-100 p-2 rounded overflow-auto text-xs">
+              {JSON.stringify(timeSeriesData[0], null, 2)}
+            </pre>
+          </div>
+        )}
+
+        <div className="mt-4">
+          <h3 className="font-medium mb-2">Full Debug Info:</h3>
+          <pre className="bg-gray-100 p-2 rounded overflow-auto text-xs">{debugInfo}</pre>
         </div>
       </div>
 
