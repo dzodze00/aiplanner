@@ -1,8 +1,8 @@
 "use client"
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { TrendingUp, TrendingDown, Package, Truck, BarChart3 } from "lucide-react"
-import { scenarios, kpiDefinitions, formatValue, getPercentChange } from "@/lib/data-utils"
+import { scenarios, formatValue, getPercentChange } from "@/lib/data-utils"
 
 interface KPIDashboardProps {
   kpis: { [key: string]: { [scenario: string]: number } }
@@ -35,81 +35,98 @@ export function KPIDashboard({ kpis, selectedScenarios }: KPIDashboardProps) {
     }
   }
 
-  const getKPIFormat = (kpiName: string) => {
-    const kpiDef = kpiDefinitions.find((k) => k.name === kpiName)
-    return kpiDef?.format || "number"
+  // If no KPIs or no selected scenarios, show a message
+  if (Object.keys(kpis).length === 0 || selectedScenarios.length === 0) {
+    return (
+      <Card>
+        <CardContent className="p-6">
+          <h2 className="text-lg font-semibold mb-2">Key Performance Indicators</h2>
+          <div className="text-center py-6 text-gray-500">
+            {Object.keys(kpis).length === 0
+              ? "No KPI data available. Please upload data files."
+              : "No scenarios selected. Please select at least one scenario."}
+          </div>
+        </CardContent>
+      </Card>
+    )
   }
 
-  const isPositiveChange = (kpiName: string, percentChange: number) => {
-    const kpiDef = kpiDefinitions.find((k) => k.name === kpiName)
-    if (!kpiDef) return percentChange > 0
+  // Filter KPIs to only include those with data for selected scenarios
+  const availableKpis = Object.keys(kpis).filter((kpiName) => {
+    return selectedScenarios.some((scenario) => kpis[kpiName]?.[scenario] !== undefined)
+  })
 
-    switch (kpiDef.positiveChange) {
-      case "up":
-        return percentChange > 0
-      case "down":
-        return percentChange < 0
-      case "balanced":
-        return Math.abs(percentChange) < 10 // For "balanced", consider small changes as positive
-    }
+  if (availableKpis.length === 0) {
+    return (
+      <Card>
+        <CardContent className="p-6">
+          <h2 className="text-lg font-semibold mb-2">Key Performance Indicators</h2>
+          <div className="text-center py-6 text-gray-500">No KPI data available for the selected scenarios.</div>
+        </CardContent>
+      </Card>
+    )
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-      {Object.keys(kpis).map((kpiName) => {
-        const baseValue = kpis[kpiName]?.["BASE"] || 0
-        const s4Value = kpis[kpiName]?.["S4"] || 0
-        const percentChange = getPercentChange(baseValue, s4Value)
-        const isPositive = isPositiveChange(kpiName, percentChange)
-        const format = getKPIFormat(kpiName)
+    <Card>
+      <CardContent className="p-6">
+        <h2 className="text-lg font-semibold mb-4">Key Performance Indicators</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          {availableKpis.map((kpiName) => {
+            const baseValue = kpis[kpiName]?.["BASE"] || 0
+            const s4Value = kpis[kpiName]?.["S4"] || 0
+            const percentChange = getPercentChange(baseValue, s4Value)
+            const isPositive = percentChange > 0
 
-        return (
-          <Card key={kpiName} className="overflow-hidden">
-            <CardHeader className="flex flex-row items-center justify-between pb-2 bg-gray-50">
-              <CardTitle className="text-sm font-medium">{kpiName}</CardTitle>
-              {getKPIIcon(kpiName)}
-            </CardHeader>
-            <CardContent className="pt-4">
-              <div className="space-y-2">
-                {selectedScenarios.map((scenario) => {
-                  const value = kpis[kpiName]?.[scenario] || 0
-                  return (
-                    <div key={scenario} className="flex items-center justify-between">
-                      <div className="flex items-center">
-                        <div
-                          className="w-3 h-3 rounded-full mr-2"
-                          style={{ backgroundColor: getScenarioColor(scenario) }}
-                        ></div>
-                        <span className="text-sm">{scenario}:</span>
-                      </div>
-                      <span className="font-semibold">{formatValue(value, format)}</span>
-                    </div>
-                  )
-                })}
-              </div>
-
-              {showComparison && (
-                <div className="mt-3 pt-2 border-t">
-                  <div className="flex items-center justify-between text-xs">
-                    <span>Change (BASE → S4):</span>
-                    <span
-                      className={`flex items-center font-semibold ${isPositive ? "text-green-600" : "text-red-600"}`}
-                    >
-                      {percentChange > 0 ? (
-                        <TrendingUp className="h-3 w-3 mr-1" />
-                      ) : (
-                        <TrendingDown className="h-3 w-3 mr-1" />
-                      )}
-                      {percentChange > 0 ? "+" : ""}
-                      {percentChange.toFixed(1)}%
-                    </span>
-                  </div>
+            return (
+              <div key={kpiName} className="border rounded-lg p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-medium text-sm">{kpiName}</h3>
+                  {getKPIIcon(kpiName)}
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        )
-      })}
-    </div>
+                <div className="space-y-2">
+                  {selectedScenarios.map((scenario) => {
+                    const value = kpis[kpiName]?.[scenario]
+                    if (value === undefined) return null
+
+                    return (
+                      <div key={scenario} className="flex items-center justify-between">
+                        <div className="flex items-center">
+                          <div
+                            className="w-3 h-3 rounded-full mr-2"
+                            style={{ backgroundColor: getScenarioColor(scenario) }}
+                          ></div>
+                          <span className="text-sm">{scenario}:</span>
+                        </div>
+                        <span className="font-semibold">{formatValue(value, "decimal")}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {showComparison && kpis[kpiName]?.["BASE"] !== undefined && kpis[kpiName]?.["S4"] !== undefined && (
+                  <div className="mt-3 pt-2 border-t">
+                    <div className="flex items-center justify-between text-xs">
+                      <span>Change (BASE → S4):</span>
+                      <span
+                        className={`flex items-center font-semibold ${isPositive ? "text-green-600" : "text-red-600"}`}
+                      >
+                        {percentChange > 0 ? (
+                          <TrendingUp className="h-3 w-3 mr-1" />
+                        ) : (
+                          <TrendingDown className="h-3 w-3 mr-1" />
+                        )}
+                        {percentChange > 0 ? "+" : ""}
+                        {percentChange.toFixed(1)}%
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </CardContent>
+    </Card>
   )
 }
