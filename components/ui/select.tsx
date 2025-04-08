@@ -6,6 +6,7 @@ import { ChevronDown } from "lucide-react"
 
 interface SelectProps extends Omit<React.SelectHTMLAttributes<HTMLSelectElement>, "onChange"> {
   onValueChange?: (value: string) => void
+  onChange?: React.ChangeEventHandler<HTMLSelectElement>
 }
 
 const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
