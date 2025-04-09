@@ -37,92 +37,119 @@ export function parseCSVData(
       console.log(`Line ${i}: ${lines[i]}`)
     }
 
-    // Find the header row with "Requirements at Plant P103" and "Week / Week Ending"
+    // APPROACH 1: Try to find a header row with week columns
     let headerRowIndex = -1
+    let weekStartIndex = -1
+    let headerCells: string[] = []
+    let weekIndices: number[] = []
+    let weekNames: string[] = []
+
+    // First, try to find a header row with "Requirements" and "Week"
     for (let i = 0; i < Math.min(20, lines.length); i++) {
       if (
-        lines[i].includes("Requirements at Plant P103") &&
-        (lines[i].includes("Week / Week Ending") || lines[i].includes("Week"))
+        (lines[i].includes("Requirements") || lines[i].includes("Demand") || lines[i].includes("Supply")) &&
+        (lines[i].includes("Week") || /\d+/.test(lines[i]))
       ) {
         headerRowIndex = i
-        console.log(`Found header row at index ${i}: ${lines[i]}`)
-        break
-      }
-    }
+        console.log(`Found potential header row at index ${i}: ${lines[i]}`)
 
-    if (headerRowIndex === -1) {
-      console.error("Could not find header row with 'Requirements at Plant P103' and 'Week / Week Ending'")
-      // Try a more lenient approach - look for any row with "Week"
-      for (let i = 0; i < Math.min(20, lines.length); i++) {
-        if (lines[i].includes("Week")) {
-          headerRowIndex = i
-          console.log(`Found potential header row with 'Week' at index ${i}: ${lines[i]}`)
-          break
+        // Parse the header row
+        headerCells = lines[i].split(",").map((cell) => cell.trim())
+
+        // Find week columns - look for cells that contain numbers or week indicators
+        for (let j = 0; j < headerCells.length; j++) {
+          if (
+            /\d+/.test(headerCells[j]) || // Contains numbers
+            headerCells[j].includes("Week") || // Contains "Week"
+            headerCells[j].includes("/") // Contains date separator
+          ) {
+            if (weekStartIndex === -1) weekStartIndex = j
+            weekIndices.push(j)
+            weekNames.push(headerCells[j] || `Week ${j - weekStartIndex + 1}`)
+          }
         }
-      }
 
-      if (headerRowIndex === -1) {
-        // Still no header found, use the first row
-        headerRowIndex = 0
-        console.log("No header row found, using first row as header")
-      }
-    }
-
-    // Parse the header row to identify week columns
-    const headerRow = lines[headerRowIndex]
-    const headerCells = headerRow.split(",").map((cell) => cell.trim())
-
-    console.log("Header cells:", headerCells)
-
-    // Find the index where week columns start
-    let weekStartIndex = -1
-    for (let i = 0; i < headerCells.length; i++) {
-      // Look for numeric values or dates that might indicate week columns
-      if (
-        /\d+/.test(headerCells[i]) || // Contains numbers
-        headerCells[i].includes("/") || // Contains date separator
-        headerCells[i].match(/w\d+/i) // Contains "W" followed by numbers
-      ) {
-        weekStartIndex = i
-        console.log(`Found first week column at index ${i}: ${headerCells[i]}`)
-        break
-      }
-    }
-
-    // If we couldn't find week columns by pattern, try to find them by position
-    if (weekStartIndex === -1) {
-      // Typically, the first few columns are descriptive, and week columns start after
-      // Look for the first non-empty cell after the first few columns
-      for (let i = 2; i < headerCells.length; i++) {
-        if (headerCells[i] && headerCells[i] !== "") {
-          weekStartIndex = i
-          console.log(`Using position-based approach, found first data column at index ${i}: ${headerCells[i]}`)
+        if (weekIndices.length > 0) {
+          console.log(`Found ${weekIndices.length} week columns starting at index ${weekStartIndex}`)
           break
         }
       }
     }
 
-    // If we still couldn't find week columns, use a default
-    if (weekStartIndex === -1) {
-      weekStartIndex = 2 // Assume first two columns are descriptive
-      console.log("Could not determine week columns, using default start index of 2")
-    }
+    // If we couldn't find a header row with the expected format, try a different approach
+    if (headerRowIndex === -1 || weekIndices.length === 0) {
+      console.log("Could not find header row with expected format, trying alternative approach")
 
-    // Collect all week column indices and names
-    const weekIndices: number[] = []
-    const weekNames: string[] = []
+      // APPROACH 2: Look for a row with many numeric values in subsequent columns
+      let maxNumericCount = 0
+      let bestRowIndex = -1
 
-    for (let i = weekStartIndex; i < headerCells.length; i++) {
-      if (headerCells[i] && headerCells[i] !== "") {
-        weekIndices.push(i)
-        weekNames.push(headerCells[i])
+      for (let i = 0; i < Math.min(30, lines.length); i++) {
+        const cells = lines[i].split(",")
+        let numericCount = 0
+
+        for (let j = 1; j < cells.length; j++) {
+          const value = cells[j].replace(/["'$,]/g, "").trim()
+          if (value !== "" && !isNaN(Number(value))) {
+            numericCount++
+          }
+        }
+
+        if (numericCount > maxNumericCount) {
+          maxNumericCount = numericCount
+          bestRowIndex = i
+        }
+      }
+
+      if (bestRowIndex > 0 && maxNumericCount > 3) {
+        // Use the row before this as the header
+        headerRowIndex = bestRowIndex - 1
+        const dataRow = lines[bestRowIndex].split(",")
+        headerCells = lines[headerRowIndex].split(",").map((cell) => cell.trim())
+
+        // Find columns with numeric values in the data row
+        weekStartIndex = -1
+        weekIndices = []
+        weekNames = []
+
+        for (let j = 1; j < dataRow.length; j++) {
+          const value = dataRow[j].replace(/["'$,]/g, "").trim()
+          if (value !== "" && !isNaN(Number(value))) {
+            if (weekStartIndex === -1) weekStartIndex = j
+            weekIndices.push(j)
+            // Use header cell if available, otherwise generate a week name
+            weekNames.push(headerCells[j] && headerCells[j] !== "" ? headerCells[j] : `Week ${j - weekStartIndex + 1}`)
+          }
+        }
+
+        console.log(
+          `Alternative approach: Found ${weekIndices.length} data columns starting at index ${weekStartIndex}`,
+        )
       }
     }
 
-    console.log(`Found ${weekIndices.length} week columns: ${weekNames.join(", ")}`)
-
+    // If we still couldn't find week columns, use a last resort approach
     if (weekIndices.length === 0) {
-      throw new Error("No week columns found in header row")
+      console.log("Could not identify week columns, using last resort approach")
+
+      // APPROACH 3: Assume first column is category, and all other columns with headers are weeks
+      headerRowIndex = 0
+      headerCells = lines[0].split(",").map((cell) => cell.trim())
+      weekStartIndex = 1
+      weekIndices = []
+      weekNames = []
+
+      for (let j = 1; j < headerCells.length; j++) {
+        if (headerCells[j] && headerCells[j] !== "") {
+          weekIndices.push(j)
+          weekNames.push(headerCells[j])
+        } else {
+          weekIndices.push(j)
+          weekNames.push(`Week ${j}`)
+        }
+      }
+
+      console.log(`Last resort approach: Using ${weekIndices.length} columns as week data`)
     }
 
     // Process data rows
@@ -131,7 +158,6 @@ export function parseCSVData(
 
       // Skip rows with insufficient data
       if (row.length <= weekStartIndex) {
-        console.log(`Skipping row ${i} with insufficient data: ${lines[i]}`)
         continue
       }
 
@@ -155,7 +181,7 @@ export function parseCSVData(
 
         if (colIndex < row.length) {
           // Clean and parse the cell value
-          const cellValue = row[colIndex].replace(/["'$,]/g, "").trim()
+          const cellValue = row[colIndex].replace(/["'$,%]/g, "").trim()
 
           // Handle empty cells
           if (cellValue === "") {
@@ -163,7 +189,17 @@ export function parseCSVData(
           }
 
           // Try to parse as number
-          const value = Number(cellValue)
+          let value = Number(cellValue)
+
+          // If parsing failed, try to extract numbers from the string
+          if (isNaN(value)) {
+            const matches = cellValue.match(/-?\d+(\.\d+)?/)
+            if (matches) {
+              value = Number(matches[0])
+            } else {
+              continue
+            }
+          }
 
           if (!isNaN(value)) {
             rowHasData = true
@@ -189,8 +225,6 @@ export function parseCSVData(
                 scenario: scenarioName,
               })
             }
-          } else {
-            console.log(`Non-numeric value in row ${i}, column ${colIndex}: ${cellValue}`)
           }
         }
       }
@@ -202,19 +236,39 @@ export function parseCSVData(
 
     console.log(`Extracted ${timeSeriesData.length} data points for ${scenarioName}`)
 
+    // If we still have no data, try a completely different approach
     if (timeSeriesData.length === 0) {
-      // Try a last-resort approach - look for any numeric values in the file
-      console.log("No data points extracted, trying last-resort approach")
+      console.log("No data points extracted, trying brute force approach")
 
+      // APPROACH 4: Brute force - look for any numeric values in the file
       for (let i = 0; i < lines.length; i++) {
-        const row = lines[i].split(",")
-        const category = row[0]?.trim() || `Row ${i}`
+        const cells = lines[i].split(",")
+        const category = cells[0]?.trim() || `Row ${i}`
 
-        for (let j = 1; j < row.length; j++) {
-          const cellValue = row[j].replace(/["'$,]/g, "").trim()
-          if (cellValue !== "" && !isNaN(Number(cellValue))) {
-            const value = Number(cellValue)
-            const week = `Column ${j}`
+        if (!category || category === "" || category.toLowerCase().includes("week")) {
+          continue
+        }
+
+        for (let j = 1; j < cells.length; j++) {
+          const cellValue = cells[j].replace(/["'$,%]/g, "").trim()
+          if (cellValue === "") continue
+
+          // Try to parse as number
+          let value = Number(cellValue)
+
+          // If parsing failed, try to extract numbers from the string
+          if (isNaN(value)) {
+            const matches = cellValue.match(/-?\d+(\.\d+)?/)
+            if (matches) {
+              value = Number(matches[0])
+            } else {
+              continue
+            }
+          }
+
+          if (!isNaN(value) && value !== 0) {
+            // Exclude zero values which might be empty cells
+            const week = `Week ${j}`
 
             timeSeriesData.push({
               category,
@@ -226,11 +280,7 @@ export function parseCSVData(
         }
       }
 
-      console.log(`Last-resort approach extracted ${timeSeriesData.length} data points`)
-
-      if (timeSeriesData.length === 0) {
-        console.error(`No data points were extracted for ${scenarioName}. Check CSV format.`)
-      }
+      console.log(`Brute force approach extracted ${timeSeriesData.length} data points`)
     }
 
     return { timeSeriesData, alertsData }
