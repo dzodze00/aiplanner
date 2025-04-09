@@ -5,13 +5,23 @@ import { parseCSVData } from "@/lib/csv-parser"
 import { transformForChart, calculateKPIs, scenarios as allScenarios } from "@/lib/data-utils"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { AlertCircle, BarChart2, LineChart, Clock, Table2, Download, Settings, Info } from "lucide-react"
+import { Card, CardContent } from "@/components/ui/card"
+import { AlertCircle, BarChart2, LineChart, Download, Settings, Menu, Home, PieChart, FileText } from "lucide-react"
 import { TimeSeriesChart } from "@/components/time-series-chart"
 import { KPICards } from "@/components/kpi-cards"
 import { ScenarioComparison } from "@/components/scenario-comparison"
 import { FileUploader } from "@/components/file-uploader"
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarTrigger,
+} from "@/components/ui/sidebar"
 
 export default function Dashboard() {
   // State
@@ -20,9 +30,10 @@ export default function Dashboard() {
   const [loadedScenarios, setLoadedScenarios] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState<boolean>(false)
-  const [activeTab, setActiveTab] = useState<string>("overview")
+  const [activeView, setActiveView] = useState<string>("overview")
   const [selectedCategory, setSelectedCategory] = useState<string>("Fill Rate")
   const [selectedScenarios, setSelectedScenarios] = useState<string[]>([])
+  const [showUploader, setShowUploader] = useState<boolean>(true)
 
   // Derived state
   const categories = useMemo(() => {
@@ -63,7 +74,12 @@ export default function Dashboard() {
       const defaultCategory = preferredCategories.find((cat) => categories.includes(cat)) || categories[0]
       setSelectedCategory(defaultCategory)
     }
-  }, [loadedScenarios, selectedScenarios, categories, selectedCategory])
+
+    // Hide uploader if we have data
+    if (timeSeriesData.length > 0) {
+      setShowUploader(false)
+    }
+  }, [loadedScenarios, selectedScenarios, categories, selectedCategory, timeSeriesData.length])
 
   // Function to fetch data directly from URLs
   const fetchDataFromUrls = async () => {
@@ -134,6 +150,11 @@ export default function Dashboard() {
       }
 
       console.log("Finished loading scenarios from URLs")
+
+      // Hide uploader after successful load
+      if (newTimeSeriesData.length > 0) {
+        setShowUploader(false)
+      }
     } catch (err) {
       console.error("Error fetching data from URLs:", err)
       setError(`Error fetching data: ${err instanceof Error ? err.message : String(err)}`)
@@ -165,85 +186,72 @@ export default function Dashboard() {
     }
   }
 
-  return (
-    <div className="p-4 max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold">Detroit Cathode Manufacturing</h1>
-          <p className="text-gray-500">S&OP Planning Dashboard</p>
+  const renderContent = () => {
+    if (showUploader || timeSeriesData.length === 0) {
+      return (
+        <div className="p-6">
+          <FileUploader
+            onDataLoaded={handleDataLoaded}
+            loadedScenarios={loadedScenarios}
+            onLoadAll={fetchDataFromUrls}
+            loading={loading}
+          />
         </div>
-        <div className="flex items-center space-x-2 mt-4 md:mt-0">
-          <Button variant="outline" size="sm">
-            <Download className="h-4 w-4 mr-2" />
-            Export
-          </Button>
-          <Button variant="outline" size="sm">
-            <Settings className="h-4 w-4 mr-2" />
-            Settings
-          </Button>
-          <Button variant="outline" size="sm">
-            <Info className="h-4 w-4 mr-2" />
-            Info
-          </Button>
-        </div>
-      </div>
+      )
+    }
 
-      {error && (
-        <Alert variant="destructive" className="mb-6">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            {error.split("\n").map((line, i) => (
-              <div key={i}>{line}</div>
-            ))}
-          </AlertDescription>
-        </Alert>
-      )}
+    switch (activeView) {
+      case "overview":
+        return (
+          <div className="p-6 space-y-6">
+            <div className="flex justify-between items-center">
+              <h1 className="text-2xl font-bold">Dashboard Overview</h1>
+              <div className="flex space-x-2">
+                <Button variant="outline" size="sm" onClick={() => setShowUploader(true)}>
+                  Upload More Data
+                </Button>
+                <Button variant="outline" size="sm">
+                  <Download className="h-4 w-4 mr-2" />
+                  Export
+                </Button>
+              </div>
+            </div>
 
-      {/* File Uploader */}
-      <FileUploader
-        onDataLoaded={handleDataLoaded}
-        loadedScenarios={loadedScenarios}
-        onLoadAll={fetchDataFromUrls}
-        loading={loading}
-      />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Card className="overflow-hidden">
+                <CardContent className="p-0">
+                  <div className="p-4 bg-blue-50 border-b">
+                    <h2 className="text-lg font-semibold">Scenario Status</h2>
+                  </div>
+                  <div className="p-4">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      {allScenarios.map((scenario) => {
+                        const isLoaded = loadedScenarios.includes(scenario.name)
+                        return (
+                          <div key={scenario.name} className="flex items-center space-x-2">
+                            <div
+                              className="w-3 h-3 rounded-full"
+                              style={{ backgroundColor: isLoaded ? scenario.color : "#e2e8f0" }}
+                            ></div>
+                            <span className={`text-sm ${isLoaded ? "font-medium" : "text-gray-500"}`}>
+                              {scenario.name} {isLoaded ? "✓" : ""}
+                            </span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
 
-      {/* Only show dashboard if we have data */}
-      {timeSeriesData.length > 0 && (
-        <div className="mt-8">
-          <Tabs defaultValue="overview" value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="overview" className="flex items-center">
-                <BarChart2 className="h-4 w-4 mr-2" />
-                Overview
-              </TabsTrigger>
-              <TabsTrigger value="timeSeries" className="flex items-center">
-                <LineChart className="h-4 w-4 mr-2" />
-                Time Series
-              </TabsTrigger>
-              <TabsTrigger value="scenarioComparison" className="flex items-center">
-                <Clock className="h-4 w-4 mr-2" />
-                Scenario Comparison
-              </TabsTrigger>
-              <TabsTrigger value="rawData" className="flex items-center">
-                <Table2 className="h-4 w-4 mr-2" />
-                Raw Data
-              </TabsTrigger>
-            </TabsList>
-
-            {/* Dashboard Filters */}
-            <Card className="my-4">
-              <CardHeader className="pb-2">
-                <CardTitle>Dashboard Filters</CardTitle>
-                <CardDescription>Customize your view of the supply chain data</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-wrap gap-4">
-                  {/* Category Filter */}
-                  <div className="w-full md:w-auto">
-                    <label className="block text-sm font-medium mb-1">Time Series Category</label>
+              <Card className="overflow-hidden">
+                <CardContent className="p-0">
+                  <div className="p-4 bg-blue-50 border-b">
+                    <h2 className="text-lg font-semibold">Category Selection</h2>
+                  </div>
+                  <div className="p-4">
                     <select
-                      className="w-full md:w-64 p-2 border rounded"
+                      className="w-full p-2 border rounded"
                       value={selectedCategory}
                       onChange={(e) => setSelectedCategory(e.target.value)}
                     >
@@ -253,127 +261,277 @@ export default function Dashboard() {
                         </option>
                       ))}
                     </select>
-                  </div>
-
-                  {/* Scenario Filter */}
-                  <div className="w-full md:w-auto">
-                    <label className="block text-sm font-medium mb-1">Scenarios</label>
-                    <div className="flex flex-wrap gap-2">
-                      {allScenarios.map((scenario) => (
-                        <label key={scenario.name} className="flex items-center space-x-2 mr-4">
-                          <input
-                            type="checkbox"
-                            checked={selectedScenarios.includes(scenario.name)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setSelectedScenarios([...selectedScenarios, scenario.name])
-                              } else {
-                                setSelectedScenarios(selectedScenarios.filter((s) => s !== scenario.name))
-                              }
-                            }}
-                            className="rounded"
-                          />
-                          <span className="text-sm">{scenario.name}</span>
-                        </label>
-                      ))}
+                    <div className="mt-2 text-sm text-gray-500">
+                      {categories.length} categories available for analysis
                     </div>
                   </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            <KPICards kpis={kpis} selectedScenarios={selectedScenarios} />
+
+            <Card className="overflow-hidden">
+              <CardContent className="p-0">
+                <div className="p-4 bg-blue-50 border-b">
+                  <h2 className="text-lg font-semibold">Time Series Analysis: {selectedCategory}</h2>
+                </div>
+                <div className="p-4 h-[400px]">
+                  <TimeSeriesChart data={chartData} selectedScenarios={selectedScenarios} />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )
+
+      case "timeSeries":
+        return (
+          <div className="p-6 space-y-6">
+            <div className="flex justify-between items-center">
+              <h1 className="text-2xl font-bold">Time Series Analysis</h1>
+              <div className="flex space-x-2">
+                <select
+                  className="p-2 border rounded"
+                  value={selectedCategory}
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                >
+                  {categories.map((category) => (
+                    <option key={category} value={category}>
+                      {category}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <Card className="overflow-hidden">
+              <CardContent className="p-0">
+                <div className="p-4 bg-blue-50 border-b">
+                  <h2 className="text-lg font-semibold">{selectedCategory}</h2>
+                </div>
+                <div className="p-4 h-[500px]">
+                  <TimeSeriesChart data={chartData} selectedScenarios={selectedScenarios} yAxisLabel="Value" />
                 </div>
               </CardContent>
             </Card>
 
-            <TabsContent value="overview" className="mt-0">
-              <div className="space-y-6">
-                <KPICards kpis={kpis} selectedScenarios={selectedScenarios} />
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Time Series Analysis</CardTitle>
-                    <CardDescription>
-                      Analyzing {selectedCategory} across {selectedScenarios.length} scenarios
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="h-[400px]">
-                    <TimeSeriesChart data={chartData} selectedScenarios={selectedScenarios} title={selectedCategory} />
-                  </CardContent>
-                </Card>
+            <div className="bg-gray-50 p-4 rounded-lg border">
+              <h3 className="font-medium mb-2">Scenario Selection</h3>
+              <div className="flex flex-wrap gap-3">
+                {allScenarios.map((scenario) => (
+                  <label key={scenario.name} className="flex items-center space-x-2 bg-white p-2 rounded border">
+                    <input
+                      type="checkbox"
+                      checked={selectedScenarios.includes(scenario.name)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedScenarios([...selectedScenarios, scenario.name])
+                        } else {
+                          setSelectedScenarios(selectedScenarios.filter((s) => s !== scenario.name))
+                        }
+                      }}
+                      className="rounded"
+                    />
+                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: scenario.color }}></div>
+                    <span className="text-sm">
+                      {scenario.name} - {scenario.description}
+                    </span>
+                  </label>
+                ))}
               </div>
-            </TabsContent>
+            </div>
+          </div>
+        )
 
-            <TabsContent value="timeSeries" className="mt-0">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Time Series Analysis</CardTitle>
-                  <CardDescription>Detailed time series analysis for {selectedCategory}</CardDescription>
-                </CardHeader>
-                <CardContent className="h-[500px]">
-                  <TimeSeriesChart
-                    data={chartData}
-                    selectedScenarios={selectedScenarios}
-                    title={selectedCategory}
-                    yAxisLabel="Value"
-                  />
-                </CardContent>
-              </Card>
-            </TabsContent>
+      case "comparison":
+        return (
+          <div className="p-6 space-y-6">
+            <div className="flex justify-between items-center">
+              <h1 className="text-2xl font-bold">Scenario Comparison</h1>
+              <Button variant="outline" size="sm">
+                <Download className="h-4 w-4 mr-2" />
+                Export
+              </Button>
+            </div>
 
-            <TabsContent value="scenarioComparison" className="mt-0">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Scenario Comparison</CardTitle>
-                  <CardDescription>Compare key metrics across different planning scenarios</CardDescription>
-                </CardHeader>
-                <CardContent className="h-[500px]">
+            <Card className="overflow-hidden">
+              <CardContent className="p-0">
+                <div className="p-4 bg-blue-50 border-b">
+                  <h2 className="text-lg font-semibold">Key Performance Indicators</h2>
+                </div>
+                <div className="p-4 h-[500px]">
                   <ScenarioComparison
                     data={kpis}
                     selectedScenarios={selectedScenarios}
                     selectedMetrics={Object.keys(kpis).slice(0, 5)}
-                    title="Key Performance Indicators"
                   />
-                </CardContent>
-              </Card>
-            </TabsContent>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )
 
-            <TabsContent value="rawData" className="mt-0">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Raw Data</CardTitle>
-                  <CardDescription>View the raw data points for the selected filters</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="rounded-md border overflow-auto max-h-[500px]">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="border-b">
-                          <th className="p-2 text-left font-medium">Category</th>
-                          <th className="p-2 text-left font-medium">Scenario</th>
-                          <th className="p-2 text-left font-medium">Week</th>
-                          <th className="p-2 text-right font-medium">Value</th>
+      case "rawData":
+        return (
+          <div className="p-6 space-y-6">
+            <div className="flex justify-between items-center">
+              <h1 className="text-2xl font-bold">Raw Data</h1>
+              <Button variant="outline" size="sm">
+                <Download className="h-4 w-4 mr-2" />
+                Export CSV
+              </Button>
+            </div>
+
+            <Card className="overflow-hidden">
+              <CardContent className="p-0">
+                <div className="rounded-md overflow-auto max-h-[600px]">
+                  <table className="w-full">
+                    <thead className="bg-gray-50 sticky top-0">
+                      <tr className="border-b">
+                        <th className="p-3 text-left font-medium">Category</th>
+                        <th className="p-3 text-left font-medium">Scenario</th>
+                        <th className="p-3 text-left font-medium">Week</th>
+                        <th className="p-3 text-right font-medium">Value</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredData.slice(0, 100).map((item, index) => (
+                        <tr key={index} className="border-b hover:bg-gray-50">
+                          <td className="p-3">{item.category}</td>
+                          <td className="p-3">
+                            <div className="flex items-center">
+                              <div
+                                className="w-2 h-2 rounded-full mr-2"
+                                style={{
+                                  backgroundColor: allScenarios.find((s) => s.name === item.scenario)?.color || "#ccc",
+                                }}
+                              ></div>
+                              {item.scenario}
+                            </div>
+                          </td>
+                          <td className="p-3">{item.week}</td>
+                          <td className="p-3 text-right font-mono">{item.value.toLocaleString()}</td>
                         </tr>
-                      </thead>
-                      <tbody>
-                        {filteredData.slice(0, 100).map((item, index) => (
-                          <tr key={index} className="border-b hover:bg-gray-50">
-                            <td className="p-2">{item.category}</td>
-                            <td className="p-2">{item.scenario}</td>
-                            <td className="p-2">{item.week}</td>
-                            <td className="p-2 text-right">{item.value.toLocaleString()}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    {filteredData.length > 100 && (
-                      <div className="p-2 text-center text-sm text-gray-500">
-                        Showing 100 of {filteredData.length} rows
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
+                      ))}
+                    </tbody>
+                  </table>
+                  {filteredData.length > 100 && (
+                    <div className="p-3 text-center text-sm text-gray-500 bg-gray-50 border-t">
+                      Showing 100 of {filteredData.length} rows
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )
+
+      default:
+        return null
+    }
+  }
+
+  return (
+    <SidebarProvider>
+      <div className="flex h-screen bg-gray-100">
+        <Sidebar className="bg-white border-r">
+          <SidebarHeader className="border-b p-4">
+            <div className="flex items-center space-x-2">
+              <BarChart2 className="h-6 w-6 text-blue-600" />
+              <div>
+                <h1 className="font-bold">DCM Dashboard</h1>
+                <p className="text-xs text-gray-500">Supply Chain Analysis</p>
+              </div>
+            </div>
+          </SidebarHeader>
+
+          <SidebarContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton onClick={() => setActiveView("overview")} isActive={activeView === "overview"}>
+                  <Home className="h-5 w-5 mr-3" />
+                  <span>Overview</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+
+              <SidebarMenuItem>
+                <SidebarMenuButton onClick={() => setActiveView("timeSeries")} isActive={activeView === "timeSeries"}>
+                  <LineChart className="h-5 w-5 mr-3" />
+                  <span>Time Series</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+
+              <SidebarMenuItem>
+                <SidebarMenuButton onClick={() => setActiveView("comparison")} isActive={activeView === "comparison"}>
+                  <PieChart className="h-5 w-5 mr-3" />
+                  <span>Comparison</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+
+              <SidebarMenuItem>
+                <SidebarMenuButton onClick={() => setActiveView("rawData")} isActive={activeView === "rawData"}>
+                  <FileText className="h-5 w-5 mr-3" />
+                  <span>Raw Data</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarContent>
+
+          <SidebarFooter className="border-t p-4">
+            <div className="text-xs text-gray-500">
+              <div className="font-medium mb-1">Loaded Scenarios:</div>
+              <div className="flex flex-wrap gap-1">
+                {loadedScenarios.map((scenario) => (
+                  <span
+                    key={scenario}
+                    className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-50 text-blue-700"
+                  >
+                    <span
+                      className="w-2 h-2 rounded-full mr-1"
+                      style={{ backgroundColor: allScenarios.find((s) => s.name === scenario)?.color || "#ccc" }}
+                    ></span>
+                    {scenario}
+                  </span>
+                ))}
+                {loadedScenarios.length === 0 && <span className="text-gray-400">None</span>}
+              </div>
+            </div>
+          </SidebarFooter>
+        </Sidebar>
+
+        <div className="flex-1 overflow-auto">
+          <header className="bg-white border-b p-4 flex items-center justify-between">
+            <div className="flex items-center">
+              <SidebarTrigger className="mr-4">
+                <Menu className="h-5 w-5" />
+              </SidebarTrigger>
+              <h1 className="text-xl font-bold">Detroit Cathode Manufacturing</h1>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Button variant="outline" size="sm" onClick={() => setShowUploader(!showUploader)}>
+                {showUploader ? "Hide Uploader" : "Upload Data"}
+              </Button>
+              <Button variant="outline" size="sm">
+                <Settings className="h-4 w-4" />
+              </Button>
+            </div>
+          </header>
+
+          {error && (
+            <Alert variant="destructive" className="m-6">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                {error.split("\n").map((line, i) => (
+                  <div key={i}>{line}</div>
+                ))}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {renderContent()}
         </div>
-      )}
-    </div>
+      </div>
+    </SidebarProvider>
   )
 }
