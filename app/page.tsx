@@ -5,10 +5,11 @@ import { parseCSVData } from "@/lib/csv-parser"
 import { transformForChart, calculateKPIs, scenarios as allScenarios } from "@/lib/data-utils"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { AlertCircle, BarChart2, LineChart, Clock, Table2, Download, Settings, Info } from "lucide-react"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { AlertCircle, BarChart2, LineChart, Clock, Table2, Download, Settings, Info } from "lucide-react"
 import { TimeSeriesChart } from "@/components/time-series-chart"
-import { KPIDashboard } from "@/components/kpi-dashboard"
+import { KPICards } from "@/components/kpi-cards"
 import { ScenarioComparison } from "@/components/scenario-comparison"
 import { FileUploader } from "@/components/file-uploader"
 
@@ -22,21 +23,12 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<string>("overview")
   const [selectedCategory, setSelectedCategory] = useState<string>("Fill Rate")
   const [selectedScenarios, setSelectedScenarios] = useState<string[]>([])
-  const [selectedWeeks, setSelectedWeeks] = useState<string[]>([])
 
   // Derived state
   const categories = useMemo(() => {
     return Array.from(new Set(timeSeriesData.map((d) => d.category)))
-  }, [timeSeriesData])
-
-  const weeks = useMemo(() => {
-    return Array.from(new Set(timeSeriesData.map((d) => d.week)))
-      .filter((week) => week !== "0") // Filter out week 0
-      .sort((a, b) => {
-        const numA = Number.parseInt(a.replace(/\D/g, ""))
-        const numB = Number.parseInt(b.replace(/\D/g, ""))
-        return numA - numB
-      })
+      .filter((cat) => cat) // Filter out empty categories
+      .sort()
   }, [timeSeriesData])
 
   // Filter data based on selections
@@ -44,10 +36,9 @@ export default function Dashboard() {
     return timeSeriesData.filter(
       (d) =>
         d.week !== "0" && // Filter out week 0
-        (selectedScenarios.length === 0 || selectedScenarios.includes(d.scenario)) &&
-        (selectedWeeks.length === 0 || selectedWeeks.includes(d.week)),
+        (selectedScenarios.length === 0 || selectedScenarios.includes(d.scenario)),
     )
-  }, [timeSeriesData, selectedScenarios, selectedWeeks])
+  }, [timeSeriesData, selectedScenarios])
 
   const chartData = useMemo(() => {
     if (filteredData.length === 0 || !selectedCategory) return []
@@ -64,14 +55,15 @@ export default function Dashboard() {
     if (loadedScenarios.length > 0 && selectedScenarios.length === 0) {
       setSelectedScenarios([...loadedScenarios])
     }
-  }, [loadedScenarios, selectedScenarios])
 
-  // Initialize selected weeks when data is loaded
-  useEffect(() => {
-    if (weeks.length > 0 && selectedWeeks.length === 0) {
-      setSelectedWeeks([...weeks])
+    // Set a default category if we have data but no category selected
+    if (categories.length > 0 && !categories.includes(selectedCategory)) {
+      // Try to find a meaningful default category
+      const preferredCategories = ["Fill Rate", "Planned FG Inventory", "Total Demand", "Available Supply"]
+      const defaultCategory = preferredCategories.find((cat) => categories.includes(cat)) || categories[0]
+      setSelectedCategory(defaultCategory)
     }
-  }, [weeks, selectedWeeks])
+  }, [loadedScenarios, selectedScenarios, categories, selectedCategory])
 
   // Function to fetch data directly from URLs
   const fetchDataFromUrls = async () => {
@@ -218,189 +210,169 @@ export default function Dashboard() {
 
       {/* Only show dashboard if we have data */}
       {timeSeriesData.length > 0 && (
-        <>
-          {/* Tab Navigation */}
-          <div className="flex mb-6 border-b mt-8">
-            <Button
-              variant={activeTab === "overview" ? "default" : "ghost"}
-              onClick={() => setActiveTab("overview")}
-              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary"
-              data-state={activeTab === "overview" ? "active" : "inactive"}
-            >
-              <BarChart2 className="h-4 w-4 mr-2" />
-              Overview
-            </Button>
-            <Button
-              variant={activeTab === "timeSeries" ? "default" : "ghost"}
-              onClick={() => setActiveTab("timeSeries")}
-              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary"
-              data-state={activeTab === "timeSeries" ? "active" : "inactive"}
-            >
-              <LineChart className="h-4 w-4 mr-2" />
-              Time Series
-            </Button>
-            <Button
-              variant={activeTab === "scenarioComparison" ? "default" : "ghost"}
-              onClick={() => setActiveTab("scenarioComparison")}
-              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary"
-              data-state={activeTab === "scenarioComparison" ? "active" : "inactive"}
-            >
-              <Clock className="h-4 w-4 mr-2" />
-              Scenario Comparison
-            </Button>
-            <Button
-              variant={activeTab === "rawData" ? "default" : "ghost"}
-              onClick={() => setActiveTab("rawData")}
-              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary"
-              data-state={activeTab === "rawData" ? "active" : "inactive"}
-            >
-              <Table2 className="h-4 w-4 mr-2" />
-              Raw Data
-            </Button>
-          </div>
+        <div className="mt-8">
+          <Tabs defaultValue="overview" value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="overview" className="flex items-center">
+                <BarChart2 className="h-4 w-4 mr-2" />
+                Overview
+              </TabsTrigger>
+              <TabsTrigger value="timeSeries" className="flex items-center">
+                <LineChart className="h-4 w-4 mr-2" />
+                Time Series
+              </TabsTrigger>
+              <TabsTrigger value="scenarioComparison" className="flex items-center">
+                <Clock className="h-4 w-4 mr-2" />
+                Scenario Comparison
+              </TabsTrigger>
+              <TabsTrigger value="rawData" className="flex items-center">
+                <Table2 className="h-4 w-4 mr-2" />
+                Raw Data
+              </TabsTrigger>
+            </TabsList>
 
-          {/* Dashboard Filters */}
-          <Card className="mb-6">
-            <CardHeader className="pb-2">
-              <CardTitle>Dashboard Filters</CardTitle>
-              <CardDescription>Customize your view of the supply chain data</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap gap-4">
-                {/* Category Filter */}
-                <div className="w-full md:w-auto">
-                  <label className="block text-sm font-medium mb-1">Time Series Category</label>
-                  <select
-                    className="w-full md:w-64 p-2 border rounded"
-                    value={selectedCategory}
-                    onChange={(e) => setSelectedCategory(e.target.value)}
-                  >
-                    {categories.map((category) => (
-                      <option key={category} value={category}>
-                        {category}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+            {/* Dashboard Filters */}
+            <Card className="my-4">
+              <CardHeader className="pb-2">
+                <CardTitle>Dashboard Filters</CardTitle>
+                <CardDescription>Customize your view of the supply chain data</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-wrap gap-4">
+                  {/* Category Filter */}
+                  <div className="w-full md:w-auto">
+                    <label className="block text-sm font-medium mb-1">Time Series Category</label>
+                    <select
+                      className="w-full md:w-64 p-2 border rounded"
+                      value={selectedCategory}
+                      onChange={(e) => setSelectedCategory(e.target.value)}
+                    >
+                      {categories.map((category) => (
+                        <option key={category} value={category}>
+                          {category}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-                {/* Scenario Filter */}
-                <div className="w-full md:w-auto">
-                  <label className="block text-sm font-medium mb-1">Scenarios</label>
-                  <div className="flex flex-wrap gap-2">
-                    {allScenarios.map((scenario) => (
-                      <label key={scenario.name} className="flex items-center space-x-2 mr-4">
-                        <input
-                          type="checkbox"
-                          checked={selectedScenarios.includes(scenario.name)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedScenarios([...selectedScenarios, scenario.name])
-                            } else {
-                              setSelectedScenarios(selectedScenarios.filter((s) => s !== scenario.name))
-                            }
-                          }}
-                          className="rounded"
-                        />
-                        <span className="text-sm">{scenario.name}</span>
-                      </label>
-                    ))}
+                  {/* Scenario Filter */}
+                  <div className="w-full md:w-auto">
+                    <label className="block text-sm font-medium mb-1">Scenarios</label>
+                    <div className="flex flex-wrap gap-2">
+                      {allScenarios.map((scenario) => (
+                        <label key={scenario.name} className="flex items-center space-x-2 mr-4">
+                          <input
+                            type="checkbox"
+                            checked={selectedScenarios.includes(scenario.name)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedScenarios([...selectedScenarios, scenario.name])
+                              } else {
+                                setSelectedScenarios(selectedScenarios.filter((s) => s !== scenario.name))
+                              }
+                            }}
+                            className="rounded"
+                          />
+                          <span className="text-sm">{scenario.name}</span>
+                        </label>
+                      ))}
+                    </div>
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+
+            <TabsContent value="overview" className="mt-0">
+              <div className="space-y-6">
+                <KPICards kpis={kpis} selectedScenarios={selectedScenarios} />
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Time Series Analysis</CardTitle>
+                    <CardDescription>
+                      Analyzing {selectedCategory} across {selectedScenarios.length} scenarios
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="h-[400px]">
+                    <TimeSeriesChart data={chartData} selectedScenarios={selectedScenarios} title={selectedCategory} />
+                  </CardContent>
+                </Card>
               </div>
-            </CardContent>
-          </Card>
+            </TabsContent>
 
-          {/* Content based on active tab */}
-          {activeTab === "overview" && (
-            <div className="space-y-6">
-              <KPIDashboard kpis={kpis} selectedScenarios={selectedScenarios} />
-
+            <TabsContent value="timeSeries" className="mt-0">
               <Card>
                 <CardHeader>
                   <CardTitle>Time Series Analysis</CardTitle>
-                  <CardDescription>
-                    Analyzing {selectedCategory} across {selectedScenarios.length} scenarios
-                  </CardDescription>
+                  <CardDescription>Detailed time series analysis for {selectedCategory}</CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <TimeSeriesChart data={chartData} selectedScenarios={selectedScenarios} title={selectedCategory} />
+                <CardContent className="h-[500px]">
+                  <TimeSeriesChart
+                    data={chartData}
+                    selectedScenarios={selectedScenarios}
+                    title={selectedCategory}
+                    yAxisLabel="Value"
+                  />
                 </CardContent>
               </Card>
-            </div>
-          )}
+            </TabsContent>
 
-          {activeTab === "timeSeries" && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Time Series Analysis</CardTitle>
-                <CardDescription>Detailed time series analysis for {selectedCategory}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <TimeSeriesChart
-                  data={chartData}
-                  selectedScenarios={selectedScenarios}
-                  title={selectedCategory}
-                  yAxisLabel="Value"
-                />
-              </CardContent>
-            </Card>
-          )}
+            <TabsContent value="scenarioComparison" className="mt-0">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Scenario Comparison</CardTitle>
+                  <CardDescription>Compare key metrics across different planning scenarios</CardDescription>
+                </CardHeader>
+                <CardContent className="h-[500px]">
+                  <ScenarioComparison
+                    data={kpis}
+                    selectedScenarios={selectedScenarios}
+                    selectedMetrics={Object.keys(kpis).slice(0, 5)}
+                    title="Key Performance Indicators"
+                  />
+                </CardContent>
+              </Card>
+            </TabsContent>
 
-          {activeTab === "scenarioComparison" && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Scenario Comparison</CardTitle>
-                <CardDescription>Compare key metrics across different planning scenarios</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ScenarioComparison
-                  data={kpis}
-                  selectedScenarios={selectedScenarios}
-                  selectedMetrics={Object.keys(kpis).slice(0, 5)}
-                  title="Key Performance Indicators"
-                />
-              </CardContent>
-            </Card>
-          )}
-
-          {activeTab === "rawData" && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Raw Data</CardTitle>
-                <CardDescription>View the raw data points for the selected filters</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="rounded-md border overflow-auto max-h-[500px]">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b">
-                        <th className="p-2 text-left font-medium">Category</th>
-                        <th className="p-2 text-left font-medium">Scenario</th>
-                        <th className="p-2 text-left font-medium">Week</th>
-                        <th className="p-2 text-right font-medium">Value</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredData.slice(0, 100).map((item, index) => (
-                        <tr key={index} className="border-b hover:bg-gray-50">
-                          <td className="p-2">{item.category}</td>
-                          <td className="p-2">{item.scenario}</td>
-                          <td className="p-2">{item.week}</td>
-                          <td className="p-2 text-right">{item.value.toLocaleString()}</td>
+            <TabsContent value="rawData" className="mt-0">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Raw Data</CardTitle>
+                  <CardDescription>View the raw data points for the selected filters</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="rounded-md border overflow-auto max-h-[500px]">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b">
+                          <th className="p-2 text-left font-medium">Category</th>
+                          <th className="p-2 text-left font-medium">Scenario</th>
+                          <th className="p-2 text-left font-medium">Week</th>
+                          <th className="p-2 text-right font-medium">Value</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  {filteredData.length > 100 && (
-                    <div className="p-2 text-center text-sm text-gray-500">
-                      Showing 100 of {filteredData.length} rows
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </>
+                      </thead>
+                      <tbody>
+                        {filteredData.slice(0, 100).map((item, index) => (
+                          <tr key={index} className="border-b hover:bg-gray-50">
+                            <td className="p-2">{item.category}</td>
+                            <td className="p-2">{item.scenario}</td>
+                            <td className="p-2">{item.week}</td>
+                            <td className="p-2 text-right">{item.value.toLocaleString()}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {filteredData.length > 100 && (
+                      <div className="p-2 text-center text-sm text-gray-500">
+                        Showing 100 of {filteredData.length} rows
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        </div>
       )}
     </div>
   )
