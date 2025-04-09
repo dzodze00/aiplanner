@@ -1,6 +1,6 @@
 "use client"
 
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { TrendingUp, TrendingDown, Package, Truck, BarChart3 } from "lucide-react"
 import { scenarios, formatValue, getPercentChange } from "@/lib/data-utils"
 
@@ -39,14 +39,14 @@ export function KPIDashboard({ kpis, selectedScenarios }: KPIDashboardProps) {
   if (Object.keys(kpis).length === 0 || selectedScenarios.length === 0) {
     return (
       <Card>
-        <CardContent className="p-6">
-          <h2 className="text-lg font-semibold mb-2">Key Performance Indicators</h2>
-          <div className="text-center py-6 text-gray-500">
+        <CardHeader>
+          <CardTitle>Key Performance Indicators</CardTitle>
+          <CardDescription>
             {Object.keys(kpis).length === 0
               ? "No KPI data available. Please upload data files."
               : "No scenarios selected. Please select at least one scenario."}
-          </div>
-        </CardContent>
+          </CardDescription>
+        </CardHeader>
       </Card>
     )
   }
@@ -59,20 +59,23 @@ export function KPIDashboard({ kpis, selectedScenarios }: KPIDashboardProps) {
   if (availableKpis.length === 0) {
     return (
       <Card>
-        <CardContent className="p-6">
-          <h2 className="text-lg font-semibold mb-2">Key Performance Indicators</h2>
-          <div className="text-center py-6 text-gray-500">No KPI data available for the selected scenarios.</div>
-        </CardContent>
+        <CardHeader>
+          <CardTitle>Key Performance Indicators</CardTitle>
+          <CardDescription>No KPI data available for the selected scenarios.</CardDescription>
+        </CardHeader>
       </Card>
     )
   }
 
   return (
     <Card>
-      <CardContent className="p-6">
-        <h2 className="text-lg font-semibold mb-4">Key Performance Indicators</h2>
+      <CardHeader>
+        <CardTitle>Key Performance Indicators</CardTitle>
+        <CardDescription>Summary of key metrics across selected scenarios</CardDescription>
+      </CardHeader>
+      <CardContent>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-          {availableKpis.map((kpiName) => {
+          {availableKpis.slice(0, 5).map((kpiName) => {
             const baseValue = kpis[kpiName]?.["BASE"] || 0
             const s4Value = kpis[kpiName]?.["S4"] || 0
             const percentChange = getPercentChange(baseValue, s4Value)
