@@ -48,6 +48,9 @@ export function FileUploader({ onDataLoaded, loadedScenarios, onLoadAll, loading
     input.type = "file"
     input.accept = ".csv"
 
+    // Ensure the input element is added to the DOM
+    document.body.appendChild(input)
+
     input.onchange = (e) => {
       if (input.files && input.files.length > 0) {
         const syntheticEvent = {
@@ -56,6 +59,8 @@ export function FileUploader({ onDataLoaded, loadedScenarios, onLoadAll, loading
 
         handleFileUpload(syntheticEvent, scenarioName)
       }
+      // Remove the input element after use
+      document.body.removeChild(input)
     }
 
     input.click()
