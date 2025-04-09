@@ -3,7 +3,10 @@ import type { DataPoint, AlertData } from "./data-utils"
 export function parseCSVData(
   csvText: string,
   scenarioName: string,
-): { timeSeriesData: DataPoint[]; alertsData: AlertData[] } {
+): {
+  timeSeriesData: DataPoint[]
+  alertsData: AlertData[]
+} {
   console.log(`Starting to parse CSV data for ${scenarioName}`)
   const timeSeriesData: DataPoint[] = []
   const alertsData: AlertData[] = []
@@ -120,6 +123,9 @@ export function parseCSVData(
 
         // Use the week value if available, otherwise use the index
         const week = i < weekValues.length ? weekValues[i] : `Week ${i + 1}`
+
+        // Skip week 0 data which often contains initialization values
+        if (week === "0") continue
 
         // Add to time series data
         timeSeriesData.push({
