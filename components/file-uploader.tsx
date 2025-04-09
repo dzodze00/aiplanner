@@ -63,7 +63,12 @@ export function FileUploader({
       // If in raw mode, try to extract data directly from the file
       if (rawMode) {
         const lines = text.split(/\r?\n/).filter((line) => line.trim() !== "")
-        const timeSeriesData = []
+        const timeSeriesData: Array<{
+          category: string
+          week: string
+          value: number
+          scenario: string
+        }> = []
 
         for (let i = 1; i < lines.length; i++) {
           const row = lines[i].split(",")
