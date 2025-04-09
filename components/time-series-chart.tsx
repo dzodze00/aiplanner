@@ -17,10 +17,22 @@ export function TimeSeriesChart({ data, selectedScenarios, title, yAxisLabel }: 
     return data
   }, [data])
 
-  if (chartData.length === 0) {
+  // Defensive check for data
+  if (!chartData || chartData.length === 0) {
     return (
       <div className="flex items-center justify-center h-full w-full bg-gray-50 rounded-lg border">
         <p className="text-gray-500">No data available for the selected category and scenarios</p>
+      </div>
+    )
+  }
+
+  // Make sure we have valid data for the selected scenarios
+  const hasValidData = selectedScenarios.some((scenario) => chartData.some((item) => item[scenario] !== undefined))
+
+  if (!hasValidData) {
+    return (
+      <div className="flex items-center justify-center h-full w-full bg-gray-50 rounded-lg border">
+        <p className="text-gray-500">No data available for the selected scenarios</p>
       </div>
     )
   }
@@ -58,18 +70,22 @@ export function TimeSeriesChart({ data, selectedScenarios, title, yAxisLabel }: 
           <Legend />
           {selectedScenarios.map((scenario) => {
             const scenarioConfig = scenarios.find((s) => s.name === scenario)
-            return (
-              <Line
-                key={scenario}
-                type="monotone"
-                dataKey={scenario}
-                name={scenario}
-                stroke={scenarioConfig?.color || "#000"}
-                activeDot={{ r: 6 }}
-                strokeWidth={2}
-                dot={{ r: 3 }}
-              />
-            )
+            // Only render the line if we have data for this scenario
+            if (chartData.some((item) => item[scenario] !== undefined)) {
+              return (
+                <Line
+                  key={scenario}
+                  type="monotone"
+                  dataKey={scenario}
+                  name={scenario}
+                  stroke={scenarioConfig?.color || "#000"}
+                  activeDot={{ r: 6 }}
+                  strokeWidth={2}
+                  dot={{ r: 3 }}
+                />
+              )
+            }
+            return null
           })}
         </LineChart>
       </ResponsiveContainer>
