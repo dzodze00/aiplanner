@@ -130,6 +130,43 @@ export default function Dashboard() {
           }
 
           console.log(`Processing ${scenarioName} data...`)
+
+          // Try raw mode first if debug mode is enabled
+          if (debugMode) {
+            console.log(`Trying raw mode for ${scenarioName}`)
+            const lines = text.split(/\r?\n/).filter((line) => line.trim() !== "")
+            const rawData = []
+
+            for (let i = 1; i < lines.length; i++) {
+              const row = lines[i].split(",")
+              if (row.length < 3) continue
+
+              const category = row[0]?.trim() || ""
+              if (!category) continue
+
+              for (let j = 2; j < row.length; j++) {
+                const value = Number(row[j].replace(/["'$,]/g, "").trim())
+                if (!isNaN(value)) {
+                  rawData.push({
+                    category,
+                    week: `Week ${j - 1}`,
+                    value,
+                    scenario: scenarioName,
+                  })
+                }
+              }
+            }
+
+            if (rawData.length > 0) {
+              console.log(`Raw mode extracted ${rawData.length} data points for ${scenarioName}`)
+              newTimeSeriesData.push(...rawData)
+              successfulScenarios.push(scenarioName)
+              continue
+            } else {
+              console.log("Raw mode failed to extract data, falling back to normal parser")
+            }
+          }
+
           const { timeSeriesData: scenarioData, alertsData: scenarioAlerts } = parseCSVData(text, scenarioName)
 
           console.log(
