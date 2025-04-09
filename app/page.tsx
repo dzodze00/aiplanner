@@ -1,15 +1,14 @@
 "use client"
 
-import type React from "react"
-
 import { useState, useEffect } from "react"
 import { parseCSVData } from "@/lib/csv-parser"
 import { transformForChart, calculateKPIs, scenarios } from "@/lib/data-utils"
 import { TimeSeriesChart } from "@/components/time-series-chart"
 import { KPICards } from "@/components/kpi-cards"
+import { FileUploader } from "@/components/file-uploader"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { BarChart2, LineChart, PieChart, FileText, Upload, Settings } from "lucide-react"
+import { BarChart2, LineChart, PieChart, FileText, Upload, Settings, AlertCircle, Bug } from "lucide-react"
 
 export default function Dashboard() {
   // State
@@ -23,6 +22,7 @@ export default function Dashboard() {
   const [selectedScenarios, setSelectedScenarios] = useState<string[]>([])
   const [showUploader, setShowUploader] = useState<boolean>(true)
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(true)
+  const [debugMode, setDebugMode] = useState<boolean>(false)
 
   // Derived state
   const categories = Array.from(new Set(timeSeriesData.map((d) => d.category)))
@@ -102,8 +102,20 @@ export default function Dashboard() {
 
       for (const [scenarioName, url] of Object.entries(urls)) {
         try {
-          console.log(`Fetching ${scenarioName} data from URL...`)
-          const response = await fetch(url, { cache: "no-store" }) // Disable caching
+          console.log(`Fetching ${scenarioName} data from URL: ${url}`)
+
+          // Use a timestamp to prevent caching
+          const timestamp = new Date().getTime()
+          const fetchUrl = `${url}?t=${timestamp}`
+
+          const response = await fetch(fetchUrl, {
+            cache: "no-store",
+            headers: {
+              "Cache-Control": "no-cache, no-store, must-revalidate",
+              Pragma: "no-cache",
+              Expires: "0",
+            },
+          })
 
           if (!response.ok) {
             throw new Error(`Failed to fetch ${scenarioName}: ${response.status} ${response.statusText}`)
@@ -111,6 +123,11 @@ export default function Dashboard() {
 
           const text = await response.text()
           console.log(`Received ${text.length} bytes for ${scenarioName}`)
+
+          if (text.length < 100) {
+            console.warn(`Suspiciously short content for ${scenarioName}:`, text)
+            errors.push(`Warning: ${scenarioName} file is suspiciously short (${text.length} bytes)`)
+          }
 
           console.log(`Processing ${scenarioName} data...`)
           const { timeSeriesData: scenarioData, alertsData: scenarioAlerts } = parseCSVData(text, scenarioName)
@@ -125,6 +142,12 @@ export default function Dashboard() {
             successfulScenarios.push(scenarioName)
           } else {
             errors.push(`No data points were extracted from the file for ${scenarioName}`)
+
+            if (debugMode) {
+              console.log(`Debug info for ${scenarioName}:`)
+              console.log("First 200 chars:", text.substring(0, 200))
+              console.log("Line count:", text.split(/\r?\n/).filter(Boolean).length)
+            }
           }
         } catch (err) {
           console.error(`Error processing ${scenarioName}:`, err)
@@ -156,66 +179,32 @@ export default function Dashboard() {
     }
   }
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>, scenarioName: string) => {
-    const file = event.target.files?.[0]
-    if (!file) return
+  const handleDataLoaded = (scenarioName: string, newTimeSeriesData: any[], newAlertsData: any[]) => {
+    console.log(`Handling loaded data for ${scenarioName}: ${newTimeSeriesData.length} data points`)
 
-    try {
-      setLoading(true)
-      const text = await file.text()
-      const { timeSeriesData: newData, alertsData: newAlerts } = parseCSVData(text, scenarioName)
+    // Update time series data
+    setTimeSeriesData((prev) => {
+      const filtered = prev.filter((d) => d.scenario !== scenarioName)
+      return [...filtered, ...newTimeSeriesData]
+    })
 
-      if (newData.length === 0) {
-        setError(`No data points were extracted from the file for ${scenarioName}`)
-        return
-      }
+    // Update alerts data
+    setAlertsData((prev) => {
+      const filtered = prev.filter((d) => d.scenario !== scenarioName)
+      return [...filtered, ...newAlertsData]
+    })
 
-      // Update time series data
-      setTimeSeriesData((prev) => {
-        const filtered = prev.filter((d) => d.scenario !== scenarioName)
-        return [...filtered, ...newData]
-      })
+    // Update loaded scenarios
+    if (!loadedScenarios.includes(scenarioName)) {
+      const newScenarios = [...loadedScenarios, scenarioName]
+      setLoadedScenarios(newScenarios)
+      setSelectedScenarios(newScenarios) // Auto-select newly loaded scenarios
+    }
 
-      // Update alerts data
-      setAlertsData((prev) => {
-        const filtered = prev.filter((d) => d.scenario !== scenarioName)
-        return [...filtered, ...newAlerts]
-      })
-
-      // Update loaded scenarios
-      if (!loadedScenarios.includes(scenarioName)) {
-        const newScenarios = [...loadedScenarios, scenarioName]
-        setLoadedScenarios(newScenarios)
-        setSelectedScenarios(newScenarios) // Auto-select newly loaded scenarios
-      }
-
-      // Hide uploader after successful load
+    // Hide uploader after successful load
+    if (newTimeSeriesData.length > 0) {
       setShowUploader(false)
-    } catch (err) {
-      console.error(`Error processing ${scenarioName}:`, err)
-      setError(`Error processing ${scenarioName}: ${err instanceof Error ? err.message : String(err)}`)
-    } finally {
-      setLoading(false)
     }
-  }
-
-  const triggerFileUpload = (scenarioName: string) => {
-    const input = document.createElement("input")
-    input.type = "file"
-    input.accept = ".csv"
-
-    input.onchange = (e) => {
-      if (input.files && input.files.length > 0) {
-        handleFileUpload(
-          {
-            target: { files: input.files },
-          } as React.ChangeEvent<HTMLInputElement>,
-          scenarioName,
-        )
-      }
-    }
-
-    input.click()
   }
 
   // Render the main content based on the active view
@@ -223,107 +212,12 @@ export default function Dashboard() {
     if (showUploader || timeSeriesData.length === 0) {
       return (
         <div className="p-6">
-          <div className="text-center max-w-2xl mx-auto mb-8">
-            <div className="bg-blue-100 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-6">
-              <Upload className="h-10 w-10 text-blue-600" />
-            </div>
-            <h2 className="text-3xl font-bold mb-3">Upload Planning Data</h2>
-            <p className="text-gray-600 mb-8">
-              Upload your scenario files to begin analysis. The dashboard will automatically update as files are loaded.
-            </p>
-
-            <Button
-              onClick={fetchDataFromUrls}
-              disabled={loading}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-md font-medium"
-            >
-              {loading ? (
-                <>
-                  <div className="animate-spin mr-2 h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
-                  Loading All Scenarios...
-                </>
-              ) : (
-                <>
-                  <Upload className="mr-2 h-4 w-4" />
-                  Load All Scenarios at Once
-                </>
-              )}
-            </Button>
-
-            <div className="text-sm text-gray-500 mt-3">Or upload individual scenario files below</div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {scenarios.map((scenario) => {
-              const isLoaded = loadedScenarios.includes(scenario.name)
-              return (
-                <div
-                  key={scenario.name}
-                  className={`border rounded-lg p-4 ${isLoaded ? "border-green-300 bg-green-50" : "border-gray-200"}`}
-                >
-                  <div className="flex items-center mb-4">
-                    <div
-                      className="w-10 h-10 rounded-full mr-3 flex items-center justify-center"
-                      style={{ backgroundColor: isLoaded ? `${scenario.color}20` : "#f1f5f9" }}
-                    >
-                      {isLoaded ? (
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="20"
-                          height="20"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke={scenario.color}
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                          <polyline points="22 4 12 14.01 9 11.01" />
-                        </svg>
-                      ) : (
-                        <Upload className="w-5 h-5 text-gray-400" />
-                      )}
-                    </div>
-                    <div>
-                      <h3 className="font-medium">{scenario.name}</h3>
-                      <p className="text-sm text-gray-500">{scenario.description}</p>
-                    </div>
-                  </div>
-                  <Button
-                    onClick={() => triggerFileUpload(scenario.name)}
-                    className={`w-full ${isLoaded ? "bg-white border border-gray-200 text-gray-700 hover:bg-gray-50" : "bg-blue-600 text-white hover:bg-blue-700"}`}
-                  >
-                    {isLoaded ? (
-                      <>
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="16"
-                          height="16"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          className="mr-2"
-                        >
-                          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                          <polyline points="22 4 12 14.01 9 11.01" />
-                        </svg>
-                        Loaded Successfully
-                      </>
-                    ) : (
-                      <>
-                        <Upload className="mr-2 h-3 w-3" />
-                        Upload CSV
-                      </>
-                    )}
-                  </Button>
-                </div>
-              )
-            })}
-          </div>
+          <FileUploader
+            onDataLoaded={handleDataLoaded}
+            loadedScenarios={loadedScenarios}
+            onLoadAll={fetchDataFromUrls}
+            loading={loading}
+          />
         </div>
       )
     }
@@ -588,17 +482,26 @@ export default function Dashboard() {
         </div>
 
         <div className="absolute bottom-0 left-0 w-64 p-4 border-t bg-white">
-          <button
-            className="flex items-center justify-center w-full p-2 border rounded-md hover:bg-gray-50"
-            onClick={() => {
-              setShowUploader(true)
-              // Force re-render of the uploader component
-              setTimeSeriesData((prev) => [...prev])
-            }}
-          >
-            <Upload className="h-4 w-4 mr-2" />
-            Upload Data
-          </button>
+          <div className="flex flex-col gap-2">
+            <button
+              className="flex items-center justify-center w-full p-2 border rounded-md hover:bg-gray-50"
+              onClick={() => {
+                setShowUploader(true)
+                // Force re-render of the uploader component
+                setTimeSeriesData((prev) => [...prev])
+              }}
+            >
+              <Upload className="h-4 w-4 mr-2" />
+              Upload Data
+            </button>
+            <button
+              className="flex items-center justify-center w-full p-2 border rounded-md hover:bg-gray-50"
+              onClick={() => setDebugMode(!debugMode)}
+            >
+              <Bug className="h-4 w-4 mr-2" />
+              {debugMode ? "Disable Debug Mode" : "Enable Debug Mode"}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -645,22 +548,7 @@ export default function Dashboard() {
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-700 p-4 m-6 rounded-md">
             <div className="flex">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="mr-2"
-              >
-                <circle cx="12" cy="12" r="10" />
-                <line x1="12" x2="12" y1="8" y2="12" />
-                <line x1="12" x2="12.01" y1="16" y2="16" />
-              </svg>
+              <AlertCircle className="h-5 w-5 mr-2 flex-shrink-0" />
               <div>
                 {error.split("\n").map((line, i) => (
                   <div key={i}>{line}</div>
