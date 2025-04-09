@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useState } from "react"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Upload, CheckCircle2, AlertCircle } from "lucide-react"
 import { parseCSVData } from "@/lib/csv-parser"
@@ -11,17 +11,19 @@ import { scenarios } from "@/lib/data-utils"
 interface FileUploaderProps {
   onDataLoaded: (scenarioName: string, timeSeriesData: any[], alertsData: any[]) => void
   loadedScenarios: string[]
+  onLoadAll: () => void
+  loading: boolean
 }
 
-export function FileUploader({ onDataLoaded, loadedScenarios }: FileUploaderProps) {
-  const [loading, setLoading] = useState<{ [key: string]: boolean }>({})
+export function FileUploader({ onDataLoaded, loadedScenarios, onLoadAll, loading }: FileUploaderProps) {
+  const [fileLoading, setFileLoading] = useState<{ [key: string]: boolean }>({})
   const [error, setError] = useState<{ [key: string]: string }>({})
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>, scenarioName: string) => {
     const file = event.target.files?.[0]
     if (!file) return
 
-    setLoading((prev) => ({ ...prev, [scenarioName]: true }))
+    setFileLoading((prev) => ({ ...prev, [scenarioName]: true }))
     setError((prev) => ({ ...prev, [scenarioName]: "" }))
 
     try {
@@ -36,7 +38,7 @@ export function FileUploader({ onDataLoaded, loadedScenarios }: FileUploaderProp
     } catch (err) {
       setError((prev) => ({ ...prev, [scenarioName]: "Failed to parse file. Please check the format." }))
     } finally {
-      setLoading((prev) => ({ ...prev, [scenarioName]: false }))
+      setFileLoading((prev) => ({ ...prev, [scenarioName]: false }))
     }
   }
 
@@ -63,16 +65,17 @@ export function FileUploader({ onDataLoaded, loadedScenarios }: FileUploaderProp
 
   return (
     <Card>
-      <CardContent className="p-6">
-        <h2 className="text-xl font-semibold mb-4">Upload Planning Data Files</h2>
-        <p className="mb-6">
+      <CardHeader>
+        <CardTitle>Upload Planning Data Files</CardTitle>
+        <CardDescription>
           Upload scenario files to begin analysis. The dashboard will automatically update as files are loaded.
-        </p>
-
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {scenarios.map((scenario) => {
             const isLoaded = loadedScenarios.includes(scenario.name)
-            const isLoading = loading[scenario.name]
+            const isLoading = fileLoading[scenario.name]
             const hasError = error[scenario.name]
 
             return (
@@ -124,6 +127,11 @@ export function FileUploader({ onDataLoaded, loadedScenarios }: FileUploaderProp
           })}
         </div>
       </CardContent>
+      <CardFooter className="flex justify-center">
+        <Button onClick={onLoadAll} disabled={loading} className="bg-blue-600 hover:bg-blue-700 text-white" size="lg">
+          {loading ? "Loading..." : "Load All Scenarios at Once"}
+        </Button>
+      </CardFooter>
     </Card>
   )
 }
