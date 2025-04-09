@@ -2,9 +2,9 @@
 
 import type React from "react"
 import { useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Upload, CheckCircle2, AlertCircle, Loader2 } from "lucide-react"
+import { Upload, CheckCircle2, AlertCircle, Loader2, FileUp } from "lucide-react"
 import { parseCSVData } from "@/lib/csv-parser"
 import { scenarios } from "@/lib/data-utils"
 
@@ -64,81 +64,103 @@ export function FileUploader({ onDataLoaded, loadedScenarios, onLoadAll, loading
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Upload Planning Data Files</CardTitle>
-        <CardDescription>
-          Upload scenario files to begin analysis. The dashboard will automatically update as files are loaded.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {scenarios.map((scenario) => {
-            const isLoaded = loadedScenarios.includes(scenario.name)
-            const isLoading = fileLoading[scenario.name]
-            const hasError = error[scenario.name]
-
-            return (
-              <div
-                key={scenario.name}
-                className={`p-4 border rounded-lg ${
-                  isLoaded ? "border-green-200 bg-green-50" : "border-gray-200"
-                } ${hasError ? "border-red-200 bg-red-50" : ""}`}
-              >
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                      isLoaded
-                        ? "bg-green-100 text-green-600"
-                        : hasError
-                          ? "bg-red-100 text-red-600"
-                          : "bg-gray-100 text-gray-600"
-                    }`}
-                  >
-                    {isLoaded ? (
-                      <CheckCircle2 className="w-4 h-4" />
-                    ) : hasError ? (
-                      <AlertCircle className="w-4 h-4" />
-                    ) : (
-                      <Upload className="w-4 h-4" />
-                    )}
-                  </div>
-                  <div>
-                    <h3 className="font-medium">{scenario.name}</h3>
-                    <p className="text-xs text-gray-500">{scenario.description}</p>
-                  </div>
-                </div>
-
-                <div className="mt-3">
-                  <Button
-                    variant={isLoaded ? "outline" : "default"}
-                    size="sm"
-                    className="w-full"
-                    disabled={isLoading}
-                    onClick={() => triggerFileUpload(scenario.name)}
-                  >
-                    {isLoading ? "Loading..." : isLoaded ? "Loaded" : "Upload"}
-                  </Button>
-                </div>
-
-                {hasError && <p className="text-xs text-red-600 mt-1">{hasError}</p>}
-              </div>
-            )
-          })}
+    <div className="space-y-6">
+      <div className="text-center max-w-2xl mx-auto">
+        <div className="bg-blue-50 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
+          <FileUp className="h-8 w-8 text-blue-600" />
         </div>
-      </CardContent>
-      <CardFooter className="flex justify-center">
+        <h2 className="text-2xl font-bold mb-2">Upload Planning Data</h2>
+        <p className="text-gray-600 mb-6">
+          Upload your scenario files to begin analysis. The dashboard will automatically update as files are loaded.
+        </p>
+
         <Button onClick={onLoadAll} disabled={loading} className="bg-blue-600 hover:bg-blue-700 text-white" size="lg">
           {loading ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Loading...
+              Loading All Scenarios...
             </>
           ) : (
-            "Load All Scenarios at Once"
+            <>
+              <Upload className="mr-2 h-4 w-4" />
+              Load All Scenarios at Once
+            </>
           )}
         </Button>
-      </CardFooter>
-    </Card>
+
+        <div className="text-sm text-gray-500 mt-2">Or upload individual scenario files below</div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {scenarios.map((scenario) => {
+          const isLoaded = loadedScenarios.includes(scenario.name)
+          const isLoading = fileLoading[scenario.name]
+          const hasError = error[scenario.name]
+
+          return (
+            <Card
+              key={scenario.name}
+              className={`overflow-hidden transition-all ${
+                isLoaded ? "border-green-200 bg-green-50" : hasError ? "border-red-200 bg-red-50" : ""
+              }`}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center">
+                  <div
+                    className="w-10 h-10 rounded-full mr-3 flex items-center justify-center"
+                    style={{ backgroundColor: isLoaded ? scenario.color : "#f1f5f9" }}
+                  >
+                    {isLoaded ? (
+                      <CheckCircle2 className="w-5 h-5 text-white" />
+                    ) : hasError ? (
+                      <AlertCircle className="w-5 h-5 text-red-500" />
+                    ) : (
+                      <Upload className="w-5 h-5 text-gray-400" />
+                    )}
+                  </div>
+                  <div>
+                    <CardTitle className="text-base">{scenario.name}</CardTitle>
+                    <CardDescription>{scenario.description}</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+
+              <CardContent>
+                {hasError && (
+                  <div className="text-xs text-red-600 mb-3 p-2 bg-red-50 rounded border border-red-100">
+                    {hasError}
+                  </div>
+                )}
+
+                <Button
+                  variant={isLoaded ? "outline" : "default"}
+                  size="sm"
+                  className="w-full"
+                  disabled={isLoading}
+                  onClick={() => triggerFileUpload(scenario.name)}
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                      Loading...
+                    </>
+                  ) : isLoaded ? (
+                    <>
+                      <CheckCircle2 className="mr-2 h-3 w-3" />
+                      Loaded Successfully
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="mr-2 h-3 w-3" />
+                      Upload CSV
+                    </>
+                  )}
+                </Button>
+              </CardContent>
+            </Card>
+          )
+        })}
+      </div>
+    </div>
   )
 }
