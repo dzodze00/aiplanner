@@ -64,17 +64,17 @@ export function FileUploader({ onDataLoaded, loadedScenarios, onLoadAll, loading
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div className="text-center max-w-2xl mx-auto">
-        <div className="bg-blue-50 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
-          <FileUp className="h-8 w-8 text-blue-600" />
+        <div className="bg-primary/10 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-6">
+          <FileUp className="h-10 w-10 text-primary" />
         </div>
-        <h2 className="text-2xl font-bold mb-2">Upload Planning Data</h2>
-        <p className="text-gray-600 mb-6">
+        <h2 className="text-3xl font-bold mb-3">Upload Planning Data</h2>
+        <p className="text-muted-foreground mb-8 max-w-lg mx-auto">
           Upload your scenario files to begin analysis. The dashboard will automatically update as files are loaded.
         </p>
 
-        <Button onClick={onLoadAll} disabled={loading} className="bg-blue-600 hover:bg-blue-700 text-white" size="lg">
+        <Button onClick={onLoadAll} disabled={loading} className="bg-primary hover:bg-primary/90 text-white" size="lg">
           {loading ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -88,7 +88,7 @@ export function FileUploader({ onDataLoaded, loadedScenarios, onLoadAll, loading
           )}
         </Button>
 
-        <div className="text-sm text-gray-500 mt-2">Or upload individual scenario files below</div>
+        <div className="text-sm text-muted-foreground mt-3">Or upload individual scenario files below</div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -100,22 +100,28 @@ export function FileUploader({ onDataLoaded, loadedScenarios, onLoadAll, loading
           return (
             <Card
               key={scenario.name}
-              className={`overflow-hidden transition-all ${
-                isLoaded ? "border-green-200 bg-green-50" : hasError ? "border-red-200 bg-red-50" : ""
+              className={`overflow-hidden transition-all hover:shadow-md ${
+                isLoaded
+                  ? "border-green-200 bg-green-50/50"
+                  : hasError
+                    ? "border-red-200 bg-red-50/50"
+                    : "hover:border-primary/50"
               }`}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center">
                   <div
-                    className="w-10 h-10 rounded-full mr-3 flex items-center justify-center"
-                    style={{ backgroundColor: isLoaded ? scenario.color : "#f1f5f9" }}
+                    className="w-12 h-12 rounded-full mr-4 flex items-center justify-center"
+                    style={{
+                      backgroundColor: isLoaded ? `${scenario.color}20` : hasError ? "#FEE2E2" : "#F1F5F9",
+                    }}
                   >
                     {isLoaded ? (
-                      <CheckCircle2 className="w-5 h-5 text-white" />
+                      <CheckCircle2 className="w-6 h-6" style={{ color: scenario.color }} />
                     ) : hasError ? (
-                      <AlertCircle className="w-5 h-5 text-red-500" />
+                      <AlertCircle className="w-6 h-6 text-red-500" />
                     ) : (
-                      <Upload className="w-5 h-5 text-gray-400" />
+                      <Upload className="w-6 h-6 text-gray-400" />
                     )}
                   </div>
                   <div>
@@ -135,7 +141,7 @@ export function FileUploader({ onDataLoaded, loadedScenarios, onLoadAll, loading
                 <Button
                   variant={isLoaded ? "outline" : "default"}
                   size="sm"
-                  className="w-full"
+                  className={`w-full ${isLoaded ? "" : "bg-primary hover:bg-primary/90"}`}
                   disabled={isLoading}
                   onClick={() => triggerFileUpload(scenario.name)}
                 >
