@@ -22,23 +22,23 @@ export const scenarios = [
 export const categoryGroups = [
   {
     name: "Demand",
-    categories: ["Total Demand", "Firm Demand", "Forecasted Demand"],
+    categories: ["Total Demand", "Firm Demand", "Forecasted Demand", "Demand"],
   },
   {
     name: "Supply",
-    categories: ["Available Supply", "Planned FG Production Orders", "Planned Purchases"],
+    categories: ["Available Supply", "Planned FG Production Orders", "Planned Purchases", "Supply"],
   },
   {
     name: "Inventory",
-    categories: ["Planned FG Inventory", "WIP Inventory", "Raw Materials"],
+    categories: ["Planned FG Inventory", "WIP Inventory", "Raw Materials", "Inventory"],
   },
   {
     name: "Performance",
-    categories: ["Fill Rate", "On-Time Delivery", "Perfect Order Rate"],
+    categories: ["Fill Rate", "On-Time Delivery", "Perfect Order Rate", "Performance"],
   },
   {
     name: "Capacity",
-    categories: ["Total Capacity", "Allocated Capacity", "Available Capacity"],
+    categories: ["Total Capacity", "Allocated Capacity", "Available Capacity", "Capacity"],
   },
 ]
 
@@ -47,7 +47,10 @@ export function transformForChart(data: DataPoint[], category: string): any[] {
     // Filter out data that doesn't match the category
     const filteredData = data.filter((d) => d.category === category)
 
-    if (filteredData.length === 0) return []
+    if (filteredData.length === 0) {
+      console.warn(`No data found for category: ${category}`)
+      return []
+    }
 
     // Group by week
     const groupedByWeek: { [week: string]: { [scenario: string]: number } } = {}
@@ -97,12 +100,15 @@ function extractNumberFromString(str: string): number | null {
 export function calculateKPIs(data: DataPoint[]): { [key: string]: { [scenario: string]: number } } {
   try {
     if (!data || data.length === 0) {
+      console.warn("No data provided to calculateKPIs")
       return {}
     }
 
     const kpis: { [key: string]: { [scenario: string]: number } } = {}
-    const scenarioNames = [...new Set(data.map((d) => d.scenario))]
+
+    // Get unique categories and scenarios
     const categories = [...new Set(data.map((d) => d.category))]
+    const scenarioNames = [...new Set(data.map((d) => d.scenario))]
 
     // Initialize KPIs for each category
     categories.forEach((category) => {
@@ -123,6 +129,9 @@ export function calculateKPIs(data: DataPoint[]): { [key: string]: { [scenario: 
       })
     })
 
+    // Log the KPIs for debugging
+    console.log("Calculated KPIs:", kpis)
+
     return kpis
   } catch (error) {
     console.error("Error calculating KPIs:", error)
@@ -131,7 +140,7 @@ export function calculateKPIs(data: DataPoint[]): { [key: string]: { [scenario: 
 }
 
 export const formatValue = (value: number, formatType: "decimal" | "percent" = "decimal"): string => {
-  if (typeof value !== "number") return "N/A"
+  if (typeof value !== "number" || isNaN(value)) return "N/A"
 
   if (formatType === "percent") {
     return `${(value * 100).toFixed(1)}%`
