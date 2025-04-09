@@ -37,6 +37,7 @@ export function FileUploader({ onDataLoaded, loadedScenarios, onLoadAll, loading
       onDataLoaded(scenarioName, timeSeriesData, alertsData)
     } catch (err) {
       setError((prev) => ({ ...prev, [scenarioName]: "Failed to parse file. Please check the format." }))
+      console.error("Error parsing file:", err)
     } finally {
       setFileLoading((prev) => ({ ...prev, [scenarioName]: false }))
     }
@@ -47,13 +48,10 @@ export function FileUploader({ onDataLoaded, loadedScenarios, onLoadAll, loading
     input.type = "file"
     input.accept = ".csv"
 
-    input.onchange = () => {
+    input.onchange = (e) => {
       if (input.files && input.files.length > 0) {
         const syntheticEvent = {
           target: { files: input.files },
-          currentTarget: { files: input.files },
-          preventDefault: () => {},
-          stopPropagation: () => {},
         } as React.ChangeEvent<HTMLInputElement>
 
         handleFileUpload(syntheticEvent, scenarioName)
