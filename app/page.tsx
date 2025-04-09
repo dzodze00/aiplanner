@@ -317,8 +317,11 @@ export default function Dashboard() {
                         if (e.target.checked) {
                           setSelectedScenarios([...selectedScenarios, scenario.name])
                         } else {
-                          setSelectedScenarios(selectedScenarios.filter((s) => s !== scenario.name))
+                          \
+                          setSelectedScenarios  scenario.name])
                         }
+                        else
+                        setSelectedScenarios(selectedScenarios.filter((s) => s !== scenario.name))
                       }}
                       className="rounded"
                     />
