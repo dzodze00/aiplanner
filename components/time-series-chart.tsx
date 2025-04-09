@@ -1,17 +1,7 @@
 "use client"
 
 import { useMemo } from "react"
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  type TooltipProps,
-} from "recharts"
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts"
 import { scenarios } from "@/lib/data-utils"
 
 interface TimeSeriesChartProps {
@@ -26,26 +16,6 @@ export function TimeSeriesChart({ data, selectedScenarios, title, yAxisLabel }: 
     if (!data || data.length === 0) return []
     return data
   }, [data])
-
-  const CustomTooltip = ({ active, payload, label }: TooltipProps<number, string>) => {
-    if (active && payload && payload.length) {
-      return (
-        <div className="bg-white p-3 border rounded shadow-sm">
-          <p className="font-medium text-sm">{`Week ${label}`}</p>
-          <div className="mt-1">
-            {payload.map((entry) => (
-              <div key={entry.name} className="flex items-center gap-2 text-sm">
-                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: entry.color }} />
-                <span>{entry.name}: </span>
-                <span className="font-medium">{Number(entry.value).toLocaleString()}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )
-    }
-    return null
-  }
 
   if (chartData.length === 0) {
     return (
@@ -69,14 +39,7 @@ export function TimeSeriesChart({ data, selectedScenarios, title, yAxisLabel }: 
           }}
         >
           <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-          <XAxis
-            dataKey="week"
-            tick={{ fontSize: 12 }}
-            tickFormatter={(value) => {
-              const num = Number.parseInt(value)
-              return isNaN(num) ? value : `${num}`
-            }}
-          />
+          <XAxis dataKey="week" tick={{ fontSize: 12 }} />
           <YAxis
             tick={{ fontSize: 12 }}
             tickFormatter={(value) => value.toLocaleString()}
@@ -91,7 +54,7 @@ export function TimeSeriesChart({ data, selectedScenarios, title, yAxisLabel }: 
                 : undefined
             }
           />
-          <Tooltip content={<CustomTooltip />} />
+          <Tooltip />
           <Legend />
           {selectedScenarios.map((scenario) => {
             const scenarioConfig = scenarios.find((s) => s.name === scenario)
