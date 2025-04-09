@@ -4,7 +4,7 @@ import type React from "react"
 import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Upload, CheckCircle2, AlertCircle, Loader2, FileUp, RefreshCw, FileText } from "lucide-react"
+import { Upload, CheckCircle2, AlertCircle, Loader2, FileUp, RefreshCw, FileText, Download } from "lucide-react"
 import { parseCSVData } from "@/lib/csv-parser"
 import { scenarios } from "@/lib/data-utils"
 
@@ -20,6 +20,7 @@ export function FileUploader({ onDataLoaded, loadedScenarios, onLoadAll, loading
   const [error, setError] = useState<{ [key: string]: string }>({})
   const [fileContents, setFileContents] = useState<{ [key: string]: string }>({})
   const [showDebug, setShowDebug] = useState<{ [key: string]: boolean }>({})
+  const [rawMode, setRawMode] = useState<boolean>(false)
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>, scenarioName: string) => {
     const file = event.target.files?.[0]
@@ -36,6 +37,40 @@ export function FileUploader({ onDataLoaded, loadedScenarios, onLoadAll, loading
       console.log(`File content length: ${text.length} bytes`)
       if (text.length < 100) {
         console.warn("File content is suspiciously short:", text)
+      }
+
+      // If in raw mode, try to extract data directly from the file
+      if (rawMode) {
+        const lines = text.split(/\r?\n/).filter((line) => line.trim() !== "")
+        const timeSeriesData = []
+
+        for (let i = 1; i < lines.length; i++) {
+          const row = lines[i].split(",")
+          if (row.length < 3) continue
+
+          const category = row[0]?.trim() || ""
+          if (!category) continue
+
+          for (let j = 2; j < row.length; j++) {
+            const value = Number(row[j].replace(/["'$,]/g, "").trim())
+            if (!isNaN(value)) {
+              timeSeriesData.push({
+                category,
+                week: `Week ${j - 1}`,
+                value,
+                scenario: scenarioName,
+              })
+            }
+          }
+        }
+
+        if (timeSeriesData.length > 0) {
+          console.log(`Raw mode extracted ${timeSeriesData.length} data points`)
+          onDataLoaded(scenarioName, timeSeriesData, [])
+          return
+        } else {
+          console.log("Raw mode failed to extract data, falling back to normal parser")
+        }
       }
 
       const { timeSeriesData, alertsData } = parseCSVData(text, scenarioName)
@@ -88,6 +123,27 @@ export function FileUploader({ onDataLoaded, loadedScenarios, onLoadAll, loading
     setShowDebug((prev) => ({ ...prev, [scenarioName]: !prev[scenarioName] }))
   }
 
+  const downloadSampleCSV = () => {
+    // Create a simple sample CSV that matches the expected format
+    const sampleCSV = `Requirements at Plant P103,,,Week / Week Ending,,,,,,,,,,,
+,,,1,2,3,4,5,6,7,8,9,10,11,12
+Demand,,,100,110,120,130,140,150,160,170,180,190,200,210
+Supply,,,90,100,110,120,130,140,150,160,170,180,190,200
+Fill Rate,,,0.9,0.91,0.92,0.92,0.93,0.93,0.94,0.94,0.94,0.95,0.95,0.95
+Planned Inventory,,,500,510,520,530,540,550,560,570,580,590,600,610
+`
+
+    const blob = new Blob([sampleCSV], { type: "text/csv" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = "sample_scenario.csv"
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
   const triggerFileUpload = (scenarioName: string) => {
     const input = document.createElement("input")
     input.type = "file"
@@ -122,19 +178,43 @@ export function FileUploader({ onDataLoaded, loadedScenarios, onLoadAll, loading
           Upload your scenario files to begin analysis. The dashboard will automatically update as files are loaded.
         </p>
 
-        <Button onClick={onLoadAll} disabled={loading} className="bg-primary hover:bg-primary/90 text-white" size="lg">
-          {loading ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Loading All Scenarios...
-            </>
-          ) : (
-            <>
-              <Upload className="mr-2 h-4 w-4" />
-              Load All Scenarios at Once
-            </>
-          )}
-        </Button>
+        <div className="flex flex-col sm:flex-row gap-3 justify-center mb-4">
+          <Button
+            onClick={onLoadAll}
+            disabled={loading}
+            className="bg-primary hover:bg-primary/90 text-white"
+            size="lg"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Loading All Scenarios...
+              </>
+            ) : (
+              <>
+                <Upload className="mr-2 h-4 w-4" />
+                Load All Scenarios at Once
+              </>
+            )}
+          </Button>
+
+          <Button onClick={downloadSampleCSV} variant="outline" size="lg">
+            <Download className="mr-2 h-4 w-4" />
+            Download Sample CSV
+          </Button>
+        </div>
+
+        <div className="flex items-center justify-center gap-2 mt-4">
+          <label className="flex items-center space-x-2 text-sm">
+            <input
+              type="checkbox"
+              checked={rawMode}
+              onChange={() => setRawMode(!rawMode)}
+              className="rounded border-gray-300"
+            />
+            <span>Use raw parsing mode (for problematic files)</span>
+          </label>
+        </div>
 
         <div className="text-sm text-muted-foreground mt-3">Or upload individual scenario files below</div>
       </div>
