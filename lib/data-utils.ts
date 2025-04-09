@@ -117,11 +117,14 @@ export const categoryGroups = [
 ]
 
 export function transformForChart(data: DataPoint[], category: string): any[] {
-  // Group by week
-  const groupedByWeek = data.reduce(
-    (acc, curr) => {
-      if (curr.category !== category) return acc
+  // Filter out data that doesn't match the category
+  const filteredData = data.filter((d) => d.category === category)
 
+  if (filteredData.length === 0) return []
+
+  // Group by week
+  const groupedByWeek = filteredData.reduce(
+    (acc, curr) => {
       if (!acc[curr.week]) {
         acc[curr.week] = {}
       }
@@ -262,8 +265,8 @@ export function calculateKPIs(data: DataPoint[]): { [key: string]: { [scenario: 
       const avgDemand = demandData.reduce((sum, p) => sum + p.value, 0) / demandData.length
 
       if (avgDemand > 0) {
-        kpis["Supply/Demand Ratio"] = kpis["Supply/Demand Ratio"] || {}
-        kpis["Supply/Demand Ratio"][scenario] = avgSupply / avgDemand
+        kpis["Supply vs Demand"] = kpis["Supply vs Demand"] || {}
+        kpis["Supply vs Demand"][scenario] = avgSupply / avgDemand
       }
     }
   })
