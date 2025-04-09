@@ -1,6 +1,6 @@
 "use client"
 
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { TrendingUp, TrendingDown, Package, Truck, BarChart3 } from "lucide-react"
 import { scenarios } from "@/lib/data-utils"
 
@@ -26,7 +26,7 @@ export function KPICards({ kpis, selectedScenarios }: KPICardsProps) {
   // If no KPIs or no selected scenarios, show a message
   if (Object.keys(kpis).length === 0 || selectedScenarios.length === 0) {
     return (
-      <div className="text-center py-6 text-gray-500 bg-white rounded-lg border">
+      <div className="text-center py-8 text-muted-foreground bg-background rounded-lg border shadow-sm">
         {Object.keys(kpis).length === 0
           ? "No KPI data available. Please select a different category."
           : "No scenarios selected. Please select at least one scenario."}
@@ -42,6 +42,7 @@ export function KPICards({ kpis, selectedScenarios }: KPICardsProps) {
       icon: <TrendingUp className="h-5 w-5 text-blue-600" />,
       format: (value: number) => `${value.toFixed(1)}%`,
       positiveChange: "up",
+      bgColor: "bg-blue-50",
     },
     {
       key: "Inventory Level",
@@ -50,6 +51,7 @@ export function KPICards({ kpis, selectedScenarios }: KPICardsProps) {
       icon: <Package className="h-5 w-5 text-purple-600" />,
       format: (value: number) => value.toFixed(0),
       positiveChange: "balanced",
+      bgColor: "bg-purple-50",
     },
     {
       key: "Production Orders",
@@ -58,6 +60,7 @@ export function KPICards({ kpis, selectedScenarios }: KPICardsProps) {
       icon: <Truck className="h-5 w-5 text-green-600" />,
       format: (value: number) => value.toFixed(0),
       positiveChange: "balanced",
+      bgColor: "bg-green-50",
     },
     {
       key: "Supply vs Demand",
@@ -66,6 +69,7 @@ export function KPICards({ kpis, selectedScenarios }: KPICardsProps) {
       icon: <BarChart3 className="h-5 w-5 text-amber-600" />,
       format: (value: number) => value.toFixed(2),
       positiveChange: "up",
+      bgColor: "bg-amber-50",
     },
     {
       key: "Capacity Utilization",
@@ -74,6 +78,7 @@ export function KPICards({ kpis, selectedScenarios }: KPICardsProps) {
       icon: <BarChart3 className="h-5 w-5 text-red-600" />,
       format: (value: number) => `${value.toFixed(1)}%`,
       positiveChange: "balanced",
+      bgColor: "bg-red-50",
     },
   ]
 
@@ -94,53 +99,53 @@ export function KPICards({ kpis, selectedScenarios }: KPICardsProps) {
               : Math.abs(percentChange) < 10 // For "balanced", consider small changes as positive
 
         return (
-          <Card key={kpi.key} className="overflow-hidden">
-            <CardContent className="p-0">
-              <div className="p-4 bg-gray-50 border-b flex items-center justify-between">
-                <h3 className="font-medium">{kpi.title}</h3>
+          <Card key={kpi.key} className="overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+            <CardHeader className={`${kpi.bgColor} border-b pb-3`}>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base">{kpi.title}</CardTitle>
                 {kpi.icon}
               </div>
+            </CardHeader>
 
-              <div className="p-4">
-                <div className="space-y-2">
-                  {selectedScenarios.map((scenario) => {
-                    const value = kpis[kpi.key]?.[scenario]
-                    if (value === undefined) return null
+            <CardContent className="p-4">
+              <div className="space-y-2">
+                {selectedScenarios.map((scenario) => {
+                  const value = kpis[kpi.key]?.[scenario]
+                  if (value === undefined) return null
 
-                    return (
-                      <div key={scenario} className="flex items-center justify-between">
-                        <div className="flex items-center">
-                          <div
-                            className="w-3 h-3 rounded-full mr-2"
-                            style={{ backgroundColor: getScenarioColor(scenario) }}
-                          ></div>
-                          <span className="text-sm">{scenario}:</span>
-                        </div>
-                        <span className="font-semibold">{kpi.format(value)}</span>
+                  return (
+                    <div key={scenario} className="flex items-center justify-between">
+                      <div className="flex items-center">
+                        <div
+                          className="w-3 h-3 rounded-full mr-2"
+                          style={{ backgroundColor: getScenarioColor(scenario) }}
+                        ></div>
+                        <span className="text-sm">{scenario}:</span>
                       </div>
-                    )
-                  })}
-                </div>
-
-                {showComparison && kpis[kpi.key]?.["BASE"] !== undefined && kpis[kpi.key]?.["S4"] !== undefined && (
-                  <div className="mt-3 pt-3 border-t">
-                    <div className="flex items-center justify-between text-xs">
-                      <span>BASE → S4:</span>
-                      <span
-                        className={`flex items-center font-semibold ${isPositive ? "text-green-600" : "text-red-600"}`}
-                      >
-                        {percentChange > 0 ? (
-                          <TrendingUp className="h-3 w-3 mr-1" />
-                        ) : (
-                          <TrendingDown className="h-3 w-3 mr-1" />
-                        )}
-                        {percentChange > 0 ? "+" : ""}
-                        {percentChange.toFixed(1)}%
-                      </span>
+                      <span className="font-semibold">{kpi.format(value)}</span>
                     </div>
-                  </div>
-                )}
+                  )
+                })}
               </div>
+
+              {showComparison && kpis[kpi.key]?.["BASE"] !== undefined && kpis[kpi.key]?.["S4"] !== undefined && (
+                <div className="mt-3 pt-3 border-t">
+                  <div className="flex items-center justify-between text-xs">
+                    <span>BASE → S4:</span>
+                    <span
+                      className={`flex items-center font-semibold ${isPositive ? "text-green-600" : "text-red-600"}`}
+                    >
+                      {percentChange > 0 ? (
+                        <TrendingUp className="h-3 w-3 mr-1" />
+                      ) : (
+                        <TrendingDown className="h-3 w-3 mr-1" />
+                      )}
+                      {percentChange > 0 ? "+" : ""}
+                      {percentChange.toFixed(1)}%
+                    </span>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         )
