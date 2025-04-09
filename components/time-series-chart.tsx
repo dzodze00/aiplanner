@@ -49,69 +49,67 @@ export function TimeSeriesChart({ data, selectedScenarios, title, yAxisLabel }: 
 
   if (chartData.length === 0) {
     return (
-      <div className="flex items-center justify-center h-64 bg-gray-50 rounded-lg border">
-        <p className="text-gray-500">No data available</p>
+      <div className="flex items-center justify-center h-full w-full bg-gray-50 rounded-lg border">
+        <p className="text-gray-500">No data available for the selected category and scenarios</p>
       </div>
     )
   }
 
   return (
-    <div className="w-full">
+    <div className="w-full h-full">
       {title && <h3 className="text-lg font-medium mb-2">{title}</h3>}
-      <div className="w-full h-64">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart
-            data={chartData}
-            margin={{
-              top: 5,
-              right: 30,
-              left: 20,
-              bottom: 5,
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart
+          data={chartData}
+          margin={{
+            top: 20,
+            right: 30,
+            left: 20,
+            bottom: 20,
+          }}
+        >
+          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+          <XAxis
+            dataKey="week"
+            tick={{ fontSize: 12 }}
+            tickFormatter={(value) => {
+              const num = Number.parseInt(value)
+              return isNaN(num) ? value : `${num}`
             }}
-          >
-            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-            <XAxis
-              dataKey="week"
-              tick={{ fontSize: 12 }}
-              tickFormatter={(value) => {
-                const num = Number.parseInt(value)
-                return isNaN(num) ? value : `${num}`
-              }}
-            />
-            <YAxis
-              tick={{ fontSize: 12 }}
-              tickFormatter={(value) => value.toLocaleString()}
-              label={
-                yAxisLabel
-                  ? {
-                      value: yAxisLabel,
-                      angle: -90,
-                      position: "insideLeft",
-                      style: { textAnchor: "middle", fontSize: 12 },
-                    }
-                  : undefined
-              }
-            />
-            <Tooltip content={<CustomTooltip />} />
-            <Legend />
-            {selectedScenarios.map((scenario) => {
-              const scenarioConfig = scenarios.find((s) => s.name === scenario)
-              return (
-                <Line
-                  key={scenario}
-                  type="monotone"
-                  dataKey={scenario}
-                  name={scenario}
-                  stroke={scenarioConfig?.color || "#000"}
-                  activeDot={{ r: 6 }}
-                  strokeWidth={2}
-                  dot={{ r: 3 }}
-                />
-              )
-            })}
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
+          />
+          <YAxis
+            tick={{ fontSize: 12 }}
+            tickFormatter={(value) => value.toLocaleString()}
+            label={
+              yAxisLabel
+                ? {
+                    value: yAxisLabel,
+                    angle: -90,
+                    position: "insideLeft",
+                    style: { textAnchor: "middle", fontSize: 12 },
+                  }
+                : undefined
+            }
+          />
+          <Tooltip content={<CustomTooltip />} />
+          <Legend />
+          {selectedScenarios.map((scenario) => {
+            const scenarioConfig = scenarios.find((s) => s.name === scenario)
+            return (
+              <Line
+                key={scenario}
+                type="monotone"
+                dataKey={scenario}
+                name={scenario}
+                stroke={scenarioConfig?.color || "#000"}
+                activeDot={{ r: 6 }}
+                strokeWidth={2}
+                dot={{ r: 3 }}
+              />
+            )
+          })}
+        </LineChart>
+      </ResponsiveContainer>
     </div>
   )
 }
