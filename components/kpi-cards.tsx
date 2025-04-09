@@ -36,7 +36,7 @@ export function KPICards({ kpis, selectedScenarios }: KPICardsProps) {
 
   const kpiConfig = [
     {
-      key: "Fill Rate",
+      key: "Fill Rate (%)",
       title: "Fill Rate",
       description: "Average fill rate across selected time periods",
       icon: <TrendingUp className="h-5 w-5 text-blue-600" />,
@@ -45,7 +45,7 @@ export function KPICards({ kpis, selectedScenarios }: KPICardsProps) {
       bgColor: "bg-blue-50",
     },
     {
-      key: "Inventory Level",
+      key: "Avg. Planned Inventory",
       title: "Inventory Level",
       description: "Average planned inventory across time periods",
       icon: <Package className="h-5 w-5 text-purple-600" />,
@@ -54,7 +54,7 @@ export function KPICards({ kpis, selectedScenarios }: KPICardsProps) {
       bgColor: "bg-purple-50",
     },
     {
-      key: "Production Orders",
+      key: "Total Production Orders",
       title: "Production Orders",
       description: "Total production orders across time periods",
       icon: <Truck className="h-5 w-5 text-green-600" />,
@@ -72,12 +72,12 @@ export function KPICards({ kpis, selectedScenarios }: KPICardsProps) {
       bgColor: "bg-amber-50",
     },
     {
-      key: "Capacity Utilization",
-      title: "Capacity Utilization",
-      description: "Percentage of capacity utilized",
+      key: "Total Alerts",
+      title: "Alerts",
+      description: "Total number of alerts",
       icon: <BarChart3 className="h-5 w-5 text-red-600" />,
-      format: (value: number) => `${value.toFixed(1)}%`,
-      positiveChange: "balanced",
+      format: (value: number) => value.toFixed(0),
+      positiveChange: "down",
       bgColor: "bg-red-50",
     },
   ]
