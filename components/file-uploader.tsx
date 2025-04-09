@@ -13,13 +13,28 @@ interface FileUploaderProps {
   loadedScenarios: string[]
   onLoadAll: () => void
   loading: boolean
+  onProceedToDashboard?: () => void
 }
 
-export function FileUploader({ onDataLoaded, loadedScenarios, onLoadAll, loading }: FileUploaderProps) {
-  const [fileLoading, setFileLoading] = useState<{ [key: string]: boolean }>({})
-  const [error, setError] = useState<{ [key: string]: string }>({})
-  const [fileContents, setFileContents] = useState<{ [key: string]: string }>({})
-  const [showDebug, setShowDebug] = useState<{ [key: string]: boolean }>({})
+export function FileUploader({
+  onDataLoaded,
+  loadedScenarios,
+  onLoadAll,
+  loading,
+  onProceedToDashboard,
+}: FileUploaderProps) {
+  const [fileLoading, setFileLoading] = useState<{ [key: string]: boolean }>(
+    scenarios.reduce((acc, scenario) => ({ ...acc, [scenario.name]: false }), {}),
+  )
+  const [error, setError] = useState<{ [key: string]: string }>(
+    scenarios.reduce((acc, scenario) => ({ ...acc, [scenario.name]: "" }), {}),
+  )
+  const [fileContents, setFileContents] = useState<{ [key: string]: string }>(
+    scenarios.reduce((acc, scenario) => ({ ...acc, [scenario.name]: "" }), {}),
+  )
+  const [showDebug, setShowDebug] = useState<{ [key: string]: boolean }>(
+    scenarios.reduce((acc, scenario) => ({ ...acc, [scenario.name]: false }), {}),
+  )
   const [rawMode, setRawMode] = useState<boolean>(false)
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>, scenarioName: string) => {
@@ -333,6 +348,20 @@ Planned Inventory,,,500,510,520,530,540,550,560,570,580,590,600,610
           )
         })}
       </div>
+      {loadedScenarios.length > 0 && (
+        <div className="mt-8 text-center">
+          <Button
+            onClick={() => onProceedToDashboard?.()}
+            className="bg-green-600 hover:bg-green-700 text-white"
+            size="lg"
+          >
+            Proceed to Dashboard
+          </Button>
+          <p className="text-sm text-gray-500 mt-2">
+            {loadedScenarios.length} of {scenarios.length} scenarios loaded
+          </p>
+        </div>
+      )}
     </div>
   )
 }
