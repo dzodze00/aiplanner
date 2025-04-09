@@ -11,38 +11,6 @@ export interface AlertData {
   scenario: string
 }
 
-// Function to parse CSV text into a 2D array
-export function parseCSV(text: string): string[][] {
-  // Handle different line endings
-  const lines = text.replace(/\r\n/g, "\n").split("\n")
-
-  return lines
-    .map((line) => {
-      // Handle quoted values correctly
-      const result: string[] = []
-      let inQuotes = false
-      let currentValue = ""
-
-      for (let i = 0; i < line.length; i++) {
-        const char = line[i]
-
-        if (char === '"') {
-          inQuotes = !inQuotes
-        } else if (char === "," && !inQuotes) {
-          result.push(currentValue.trim())
-          currentValue = ""
-        } else {
-          currentValue += char
-        }
-      }
-
-      // Add the last value
-      result.push(currentValue.trim())
-      return result
-    })
-    .filter((row) => row.length > 0 && row.some((cell) => cell !== ""))
-}
-
 export function parseCSVData(
   csvText: string,
   scenarioName: string,
@@ -55,112 +23,85 @@ export function parseCSVData(
   const alertsData: AlertData[] = []
 
   try {
-    // Parse the CSV into a 2D array
-    const parsedData = parseCSV(csvText)
+    // Split the CSV into lines and clean up
+    const lines = csvText.split(/\r?\n/).filter((line) => line.trim() !== "")
+    console.log(`CSV has ${lines.length} lines after cleanup`)
 
-    if (parsedData.length === 0) {
-      console.error("CSV file is empty or invalid")
-      return { timeSeriesData, alertsData }
+    if (lines.length === 0) {
+      throw new Error("CSV file is empty")
     }
 
-    console.log(`CSV has ${parsedData.length} rows after parsing`)
-
-    // Log a sample of the parsed data
-    console.log("Sample of parsed data:")
-    for (let i = 0; i < Math.min(5, parsedData.length); i++) {
-      console.log(`Row ${i}: [${parsedData[i].join(", ")}]`)
-    }
-
-    // Try multiple strategies to find the header row and data structure
-
-    // Strategy 1: Look for a row with "Week" or similar keywords
+    // Find header row (look for "Week" or similar)
     let headerRowIndex = -1
-    for (let i = 0; i < Math.min(20, parsedData.length); i++) {
-      const row = parsedData[i]
-      const rowText = row.join(" ").toLowerCase()
-      if (
-        rowText.includes("week") ||
-        rowText.includes("period") ||
-        rowText.includes("date") ||
-        rowText.includes("time") ||
-        /w\d+/.test(rowText)
-      ) {
+    for (let i = 0; i < Math.min(20, lines.length); i++) {
+      if (lines[i].includes("Week / Week Ending") || lines[i].includes("Requirements at Plant P103")) {
         headerRowIndex = i
-        console.log(`Found potential header row at index ${i}: [${row.join(", ")}]`)
+        console.log(`Found header row at index ${i}: ${lines[i]}`)
         break
       }
     }
 
-    // If no header found with Strategy 1, try Strategy 2: Look for a row with many numeric columns
-    if (headerRowIndex === -1) {
-      for (let i = 0; i < Math.min(10, parsedData.length); i++) {
-        const row = parsedData[i]
-        // Check if the next row has many numeric values
-        if (i + 1 < parsedData.length) {
-          const nextRow = parsedData[i + 1]
-          const numericCount = nextRow.filter((cell) => !isNaN(Number(cell)) && cell.trim() !== "").length
-          if (numericCount > 3) {
-            // If more than 3 numeric values, this might be a header row
-            headerRowIndex = i
-            console.log(`Found potential header row at index ${i} based on numeric values in next row`)
-            break
-          }
-        }
-      }
-    }
-
-    // If still no header found, assume first row is header
+    // If no header found, assume first row is header
     if (headerRowIndex === -1) {
       headerRowIndex = 0
       console.log("No header row found, assuming first row is header")
     }
 
-    const headerRow = parsedData[headerRowIndex]
-
-    // Find columns that might contain week/time period data
+    // Parse header to find week columns
+    const headerCells = lines[headerRowIndex].split(",")
     const weekIndices: number[] = []
-    const weekLabels: string[] = []
+    const weekNames: string[] = []
 
-    // Skip the first column (usually category/description)
-    for (let i = 1; i < headerRow.length; i++) {
-      const cell = headerRow[i].trim()
-      if (cell && cell !== "") {
-        weekIndices.push(i)
-        weekLabels.push(cell)
+    // Find the first column with "Week / Week Ending"
+    let weekHeaderIndex = -1
+    for (let i = 0; i < headerCells.length; i++) {
+      if (headerCells[i].includes("Week / Week Ending")) {
+        weekHeaderIndex = i
+        break
       }
     }
 
-    console.log(`Found ${weekIndices.length} potential data columns: [${weekLabels.join(", ")}]`)
-
-    if (weekIndices.length === 0) {
-      console.error("No data columns found in header row")
-      return { timeSeriesData, alertsData }
+    if (weekHeaderIndex === -1) {
+      console.log("Could not find 'Week / Week Ending' column, using all columns after the first")
+      // If we can't find the week header, use all columns after the first
+      for (let i = 1; i < headerCells.length; i++) {
+        if (headerCells[i].trim() !== "") {
+          weekIndices.push(i)
+          weekNames.push(headerCells[i] || `Column ${i}`)
+        }
+      }
+    } else {
+      // Use all columns starting from the week header
+      for (let i = weekHeaderIndex; i < headerCells.length; i++) {
+        if (headerCells[i].trim() !== "") {
+          weekIndices.push(i)
+          weekNames.push(headerCells[i] || `Column ${i}`)
+        }
+      }
     }
 
+    console.log(`Found ${weekIndices.length} week columns: ${weekNames.join(", ")}`)
+
     // Process data rows
-    for (let i = headerRowIndex + 1; i < parsedData.length; i++) {
-      const row = parsedData[i]
-      if (row.length <= 1) continue // Skip rows with insufficient data
+    for (let i = headerRowIndex + 1; i < lines.length; i++) {
+      const row = lines[i].split(",")
+      if (row.length <= 1) continue
 
       const category = row[0].trim()
-      if (!category) continue // Skip rows with empty category
+      if (!category) continue
 
-      // Skip header-like rows or empty rows
+      // Skip header-like rows
       if (
         category.toLowerCase().includes("week") ||
-        category.toLowerCase().includes("period") ||
-        category.toLowerCase().includes("date") ||
+        category.toLowerCase().includes("requirements") ||
         category === ""
       ) {
         continue
       }
 
       let rowHasData = false
-
-      // Process each data column
       weekIndices.forEach((colIndex, idx) => {
         if (colIndex < row.length) {
-          // Clean and parse the cell value
           const cellValue = row[colIndex].replace(/["'$,]/g, "").trim()
 
           if (cellValue !== "") {
@@ -168,7 +109,7 @@ export function parseCSVData(
 
             if (!isNaN(value)) {
               rowHasData = true
-              const week = weekLabels[idx] || `Column ${idx + 1}`
+              const week = weekNames[idx] || `Column ${idx + 1}`
 
               timeSeriesData.push({
                 category,
@@ -196,7 +137,7 @@ export function parseCSVData(
       })
 
       if (!rowHasData) {
-        console.log(`No numeric data found in row ${i}: [${row.join(", ")}]`)
+        console.log(`No numeric data found in row ${i}: ${lines[i]}`)
       }
     }
 
