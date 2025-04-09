@@ -1,6 +1,5 @@
 "use client"
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { TrendingUp, TrendingDown, Package, Truck, BarChart3 } from "lucide-react"
 import { scenarios } from "@/lib/data-utils"
 
@@ -26,7 +25,7 @@ export function KPICards({ kpis, selectedScenarios }: KPICardsProps) {
   // If no KPIs or no selected scenarios, show a message
   if (Object.keys(kpis).length === 0 || selectedScenarios.length === 0) {
     return (
-      <div className="text-center py-8 text-muted-foreground bg-background rounded-lg border shadow-sm">
+      <div className="text-center py-8 text-gray-500 bg-white rounded-lg border">
         {Object.keys(kpis).length === 0
           ? "No KPI data available. Please select a different category."
           : "No scenarios selected. Please select at least one scenario."}
@@ -99,15 +98,13 @@ export function KPICards({ kpis, selectedScenarios }: KPICardsProps) {
               : Math.abs(percentChange) < 10 // For "balanced", consider small changes as positive
 
         return (
-          <Card key={kpi.key} className="overflow-hidden shadow-sm hover:shadow-md transition-shadow">
-            <CardHeader className={`${kpi.bgColor} border-b pb-3`}>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base">{kpi.title}</CardTitle>
-                {kpi.icon}
-              </div>
-            </CardHeader>
+          <div key={kpi.key} className={`border rounded-lg overflow-hidden shadow-sm ${kpi.bgColor}`}>
+            <div className="border-b p-3 flex items-center justify-between">
+              <h3 className="font-medium">{kpi.title}</h3>
+              {kpi.icon}
+            </div>
 
-            <CardContent className="p-4">
+            <div className="p-4 bg-white">
               <div className="space-y-2">
                 {selectedScenarios.map((scenario) => {
                   const value = kpis[kpi.key]?.[scenario]
@@ -146,8 +143,8 @@ export function KPICards({ kpis, selectedScenarios }: KPICardsProps) {
                   </div>
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         )
       })}
     </div>
