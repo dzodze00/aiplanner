@@ -4,7 +4,7 @@ import type React from "react"
 import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Upload, CheckCircle2, AlertCircle, Loader2, FileUp } from "lucide-react"
+import { Upload, CheckCircle2, AlertCircle, Loader2, FileUp, RefreshCw, FileText } from "lucide-react"
 import { parseCSVData } from "@/lib/csv-parser"
 import { scenarios } from "@/lib/data-utils"
 
@@ -18,6 +18,8 @@ interface FileUploaderProps {
 export function FileUploader({ onDataLoaded, loadedScenarios, onLoadAll, loading }: FileUploaderProps) {
   const [fileLoading, setFileLoading] = useState<{ [key: string]: boolean }>({})
   const [error, setError] = useState<{ [key: string]: string }>({})
+  const [fileContents, setFileContents] = useState<{ [key: string]: string }>({})
+  const [showDebug, setShowDebug] = useState<{ [key: string]: boolean }>({})
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>, scenarioName: string) => {
     const file = event.target.files?.[0]
@@ -27,20 +29,63 @@ export function FileUploader({ onDataLoaded, loadedScenarios, onLoadAll, loading
     setError((prev) => ({ ...prev, [scenarioName]: "" }))
 
     try {
+      console.log(`Reading file for ${scenarioName}: ${file.name}`)
       const text = await file.text()
+      setFileContents((prev) => ({ ...prev, [scenarioName]: text }))
+
+      console.log(`File content length: ${text.length} bytes`)
+      if (text.length < 100) {
+        console.warn("File content is suspiciously short:", text)
+      }
+
       const { timeSeriesData, alertsData } = parseCSVData(text, scenarioName)
 
       if (timeSeriesData.length === 0) {
         throw new Error("No data points were extracted from the file. Please check the format.")
       }
 
+      console.log(`Successfully parsed ${timeSeriesData.length} data points for ${scenarioName}`)
       onDataLoaded(scenarioName, timeSeriesData, alertsData)
     } catch (err) {
-      setError((prev) => ({ ...prev, [scenarioName]: "Failed to parse file. Please check the format." }))
-      console.error("Error parsing file:", err)
+      const errorMessage = err instanceof Error ? err.message : "Failed to parse file. Please check the format."
+      setError((prev) => ({ ...prev, [scenarioName]: errorMessage }))
+      console.error(`Error parsing file for ${scenarioName}:`, err)
     } finally {
       setFileLoading((prev) => ({ ...prev, [scenarioName]: false }))
     }
+  }
+
+  const retryParsing = (scenarioName: string) => {
+    const text = fileContents[scenarioName]
+    if (!text) {
+      setError((prev) => ({ ...prev, [scenarioName]: "No file content available to retry" }))
+      return
+    }
+
+    setFileLoading((prev) => ({ ...prev, [scenarioName]: true }))
+    setError((prev) => ({ ...prev, [scenarioName]: "" }))
+
+    try {
+      console.log(`Retrying parsing for ${scenarioName}`)
+      const { timeSeriesData, alertsData } = parseCSVData(text, scenarioName)
+
+      if (timeSeriesData.length === 0) {
+        throw new Error("No data points were extracted from the file. Please check the format.")
+      }
+
+      console.log(`Successfully parsed ${timeSeriesData.length} data points for ${scenarioName}`)
+      onDataLoaded(scenarioName, timeSeriesData, alertsData)
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to parse file. Please check the format."
+      setError((prev) => ({ ...prev, [scenarioName]: errorMessage }))
+      console.error(`Error parsing file for ${scenarioName}:`, err)
+    } finally {
+      setFileLoading((prev) => ({ ...prev, [scenarioName]: false }))
+    }
+  }
+
+  const toggleDebug = (scenarioName: string) => {
+    setShowDebug((prev) => ({ ...prev, [scenarioName]: !prev[scenarioName] }))
   }
 
   const triggerFileUpload = (scenarioName: string) => {
@@ -99,6 +144,8 @@ export function FileUploader({ onDataLoaded, loadedScenarios, onLoadAll, loading
           const isLoaded = loadedScenarios.includes(scenario.name)
           const isLoading = fileLoading[scenario.name]
           const hasError = error[scenario.name]
+          const hasFileContent = !!fileContents[scenario.name]
+          const isDebugShown = showDebug[scenario.name]
 
           return (
             <Card
@@ -138,6 +185,42 @@ export function FileUploader({ onDataLoaded, loadedScenarios, onLoadAll, loading
                 {hasError && (
                   <div className="text-xs text-red-600 mb-3 p-2 bg-red-50 rounded border border-red-100">
                     {hasError}
+                    {hasFileContent && (
+                      <div className="mt-2 flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-xs flex-1"
+                          onClick={() => retryParsing(scenario.name)}
+                        >
+                          <RefreshCw className="h-3 w-3 mr-1" /> Retry
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-xs flex-1"
+                          onClick={() => toggleDebug(scenario.name)}
+                        >
+                          <FileText className="h-3 w-3 mr-1" /> {isDebugShown ? "Hide" : "Debug"}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {isDebugShown && hasFileContent && (
+                  <div className="mb-3 p-2 bg-gray-50 rounded border text-xs">
+                    <div className="font-medium mb-1">File Preview (first 200 chars):</div>
+                    <pre className="whitespace-pre-wrap overflow-auto max-h-32 bg-white p-2 rounded border">
+                      {fileContents[scenario.name].substring(0, 200)}
+                      {fileContents[scenario.name].length > 200 ? "..." : ""}
+                    </pre>
+                    <div className="mt-2">
+                      <div className="font-medium mb-1">File Size: {fileContents[scenario.name].length} bytes</div>
+                      <div className="font-medium">
+                        Lines: {fileContents[scenario.name].split(/\r?\n/).filter(Boolean).length}
+                      </div>
+                    </div>
                   </div>
                 )}
 
