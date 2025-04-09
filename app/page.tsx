@@ -68,11 +68,8 @@ export default function Dashboard() {
       setSelectedCategory(defaultCategory)
     }
 
-    // Hide uploader if we have data
-    if (timeSeriesData.length > 0) {
-      setShowUploader(false)
-    }
-  }, [loadedScenarios, selectedScenarios, categories, selectedCategory, timeSeriesData.length])
+    // Don't automatically hide the uploader - let the user decide when to proceed
+  }, [loadedScenarios, selectedScenarios, categories, selectedCategory])
 
   // Function to fetch data directly from URLs
   const fetchDataFromUrls = async () => {
@@ -204,10 +201,7 @@ export default function Dashboard() {
 
       console.log("Finished loading scenarios from URLs")
 
-      // Hide uploader after successful load
-      if (newTimeSeriesData.length > 0) {
-        setShowUploader(false)
-      }
+      // Don't hide the uploader - let the user decide when to proceed
     } catch (err) {
       console.error("Error fetching data from URLs:", err)
       setError(`Error fetching data: ${err instanceof Error ? err.message : String(err)}`)
@@ -238,10 +232,7 @@ export default function Dashboard() {
       setSelectedScenarios(newScenarios) // Auto-select newly loaded scenarios
     }
 
-    // Hide uploader after successful load
-    if (newTimeSeriesData.length > 0) {
-      setShowUploader(false)
-    }
+    // Don't hide the uploader - let the user decide when to proceed
   }
 
   // Render the main content based on the active view
@@ -254,6 +245,7 @@ export default function Dashboard() {
             loadedScenarios={loadedScenarios}
             onLoadAll={fetchDataFromUrls}
             loading={loading}
+            onProceedToDashboard={() => setShowUploader(false)}
           />
         </div>
       )
