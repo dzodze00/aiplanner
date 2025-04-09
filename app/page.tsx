@@ -34,8 +34,25 @@ export default function Dashboard() {
     (d) => d.week !== "0" && (selectedScenarios.length === 0 || selectedScenarios.includes(d.scenario)),
   )
 
-  const chartData = transformForChart(filteredData, selectedCategory)
-  const kpis = calculateKPIs(filteredData)
+  // Transform data for chart - with error handling
+  let chartData = []
+  try {
+    chartData = transformForChart(filteredData, selectedCategory)
+  } catch (err) {
+    console.error("Error transforming chart data:", err)
+    // If transformation fails, use empty array
+    chartData = []
+  }
+
+  // Calculate KPIs - with error handling
+  let kpis = {}
+  try {
+    kpis = calculateKPIs(filteredData)
+  } catch (err) {
+    console.error("Error calculating KPIs:", err)
+    // If calculation fails, use empty object
+    kpis = {}
+  }
 
   // Initialize selected scenarios when data is loaded
   useEffect(() => {
@@ -144,6 +161,7 @@ export default function Dashboard() {
     if (!file) return
 
     try {
+      setLoading(true)
       const text = await file.text()
       const { timeSeriesData: newData, alertsData: newAlerts } = parseCSVData(text, scenarioName)
 
@@ -176,6 +194,8 @@ export default function Dashboard() {
     } catch (err) {
       console.error(`Error processing ${scenarioName}:`, err)
       setError(`Error processing ${scenarioName}: ${err instanceof Error ? err.message : String(err)}`)
+    } finally {
+      setLoading(false)
     }
   }
 
