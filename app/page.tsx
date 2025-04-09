@@ -103,7 +103,7 @@ export default function Dashboard() {
       for (const [scenarioName, url] of Object.entries(urls)) {
         try {
           console.log(`Fetching ${scenarioName} data from URL...`)
-          const response = await fetch(url)
+          const response = await fetch(url, { cache: "no-store" }) // Disable caching
 
           if (!response.ok) {
             throw new Error(`Failed to fetch ${scenarioName}: ${response.status} ${response.statusText}`)
@@ -590,7 +590,11 @@ export default function Dashboard() {
         <div className="absolute bottom-0 left-0 w-64 p-4 border-t bg-white">
           <button
             className="flex items-center justify-center w-full p-2 border rounded-md hover:bg-gray-50"
-            onClick={() => setShowUploader(true)}
+            onClick={() => {
+              setShowUploader(true)
+              // Force re-render of the uploader component
+              setTimeSeriesData((prev) => [...prev])
+            }}
           >
             <Upload className="h-4 w-4 mr-2" />
             Upload Data
@@ -624,7 +628,11 @@ export default function Dashboard() {
           <div className="flex items-center space-x-2">
             <button
               className="flex items-center p-2 border rounded-md hover:bg-gray-50"
-              onClick={() => setShowUploader(!showUploader)}
+              onClick={() => {
+                setShowUploader(true)
+                // Force re-render of the uploader component
+                setTimeSeriesData((prev) => [...prev])
+              }}
             >
               {showUploader ? "Hide Uploader" : "Upload Data"}
             </button>
