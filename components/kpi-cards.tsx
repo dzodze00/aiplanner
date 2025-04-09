@@ -1,7 +1,7 @@
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { TrendingUp, TrendingDown, AlertTriangle, Package, Truck, BarChart3 } from "lucide-react"
+import { TrendingUp, TrendingDown, Package, Truck, BarChart3 } from "lucide-react"
 import { scenarios } from "@/lib/data-utils"
 
 interface KPICardsProps {
@@ -23,6 +23,17 @@ export function KPICards({ kpis, selectedScenarios }: KPICardsProps) {
     return ((newValue - baseValue) / baseValue) * 100
   }
 
+  // If no KPIs or no selected scenarios, show a message
+  if (Object.keys(kpis).length === 0 || selectedScenarios.length === 0) {
+    return (
+      <div className="text-center py-6 text-gray-500">
+        {Object.keys(kpis).length === 0
+          ? "No KPI data available. Please select a different category."
+          : "No scenarios selected. Please select at least one scenario."}
+      </div>
+    )
+  }
+
   const kpiConfig = [
     {
       key: "Fill Rate",
@@ -33,24 +44,8 @@ export function KPICards({ kpis, selectedScenarios }: KPICardsProps) {
       positiveChange: "up",
     },
     {
-      key: "Critical Alerts",
-      title: "Critical Alerts",
-      description: "Total critical alerts in the planning model",
-      icon: <AlertTriangle className="h-4 w-4" />,
-      format: (value: number) => value.toFixed(0),
-      positiveChange: "down",
-    },
-    {
-      key: "Capacity Alerts",
-      title: "Capacity Alerts",
-      description: "Total capacity alerts in the planning model",
-      icon: <BarChart3 className="h-4 w-4" />,
-      format: (value: number) => value.toFixed(0),
-      positiveChange: "down",
-    },
-    {
-      key: "Planned Inventory",
-      title: "Planned Inventory",
+      key: "Inventory Level",
+      title: "Inventory Level",
       description: "Average planned inventory across time periods",
       icon: <Package className="h-4 w-4" />,
       format: (value: number) => value.toFixed(0),
@@ -64,11 +59,30 @@ export function KPICards({ kpis, selectedScenarios }: KPICardsProps) {
       format: (value: number) => value.toFixed(0),
       positiveChange: "balanced",
     },
+    {
+      key: "Supply vs Demand",
+      title: "Supply vs Demand",
+      description: "Ratio of supply to demand",
+      icon: <BarChart3 className="h-4 w-4" />,
+      format: (value: number) => value.toFixed(2),
+      positiveChange: "up",
+    },
+    {
+      key: "Capacity Utilization",
+      title: "Capacity Utilization",
+      description: "Percentage of capacity utilized",
+      icon: <BarChart3 className="h-4 w-4" />,
+      format: (value: number) => `${value.toFixed(1)}%`,
+      positiveChange: "balanced",
+    },
   ]
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
       {kpiConfig.map((kpi) => {
+        // Skip if we don't have data for this KPI
+        if (!kpis[kpi.key]) return null
+
         const baseValue = kpis[kpi.key]?.["BASE"] || 0
         const s4Value = kpis[kpi.key]?.["S4"] || 0
         const percentChange = getPercentChange(baseValue, s4Value)
@@ -88,7 +102,9 @@ export function KPICards({ kpis, selectedScenarios }: KPICardsProps) {
             <CardContent>
               <div className="space-y-1">
                 {selectedScenarios.map((scenario) => {
-                  const value = kpis[kpi.key]?.[scenario] || 0
+                  const value = kpis[kpi.key]?.[scenario]
+                  if (value === undefined) return null
+
                   return (
                     <div key={scenario} className="flex items-center justify-between">
                       <div className="flex items-center">
@@ -104,7 +120,7 @@ export function KPICards({ kpis, selectedScenarios }: KPICardsProps) {
                 })}
               </div>
 
-              {showComparison && (
+              {showComparison && kpis[kpi.key]?.["BASE"] !== undefined && kpis[kpi.key]?.["S4"] !== undefined && (
                 <div className="mt-2 pt-2 border-t">
                   <div className="flex items-center justify-between text-xs">
                     <span>Change (BASE → S4):</span>
