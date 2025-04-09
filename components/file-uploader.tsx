@@ -4,7 +4,7 @@ import type React from "react"
 import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Upload, CheckCircle2, AlertCircle, Loader2, FileUp, RefreshCw, FileText, Download } from "lucide-react"
+import { Upload, CheckCircle2, AlertCircle, Loader2, FileUp, RefreshCw, FileText, Download, Eye } from "lucide-react"
 import { parseCSVData } from "@/lib/csv-parser"
 import { scenarios } from "@/lib/data-utils"
 
@@ -36,6 +36,12 @@ export function FileUploader({
     scenarios.reduce((acc, scenario) => ({ ...acc, [scenario.name]: false }), {}),
   )
   const [rawMode, setRawMode] = useState<boolean>(false)
+  const [extractedData, setExtractedData] = useState<{ [key: string]: any[] }>(
+    scenarios.reduce((acc, scenario) => ({ ...acc, [scenario.name]: [] }), {}),
+  )
+  const [showDataPreview, setShowDataPreview] = useState<{ [key: string]: boolean }>(
+    scenarios.reduce((acc, scenario) => ({ ...acc, [scenario.name]: false }), {}),
+  )
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>, scenarioName: string) => {
     const file = event.target.files?.[0]
@@ -67,7 +73,7 @@ export function FileUploader({
           if (!category) continue
 
           for (let j = 2; j < row.length; j++) {
-            const value = Number(row[j].replace(/["'$,]/g, "").trim())
+            const value = Number(row[j].replace(/["'$,%]/g, "").trim())
             if (!isNaN(value)) {
               timeSeriesData.push({
                 category,
@@ -81,6 +87,7 @@ export function FileUploader({
 
         if (timeSeriesData.length > 0) {
           console.log(`Raw mode extracted ${timeSeriesData.length} data points`)
+          setExtractedData((prev) => ({ ...prev, [scenarioName]: timeSeriesData }))
           onDataLoaded(scenarioName, timeSeriesData, [])
           return
         } else {
@@ -89,6 +96,7 @@ export function FileUploader({
       }
 
       const { timeSeriesData, alertsData } = parseCSVData(text, scenarioName)
+      setExtractedData((prev) => ({ ...prev, [scenarioName]: timeSeriesData }))
 
       if (timeSeriesData.length === 0) {
         throw new Error("No data points were extracted from the file. Please check the format.")
@@ -118,6 +126,7 @@ export function FileUploader({
     try {
       console.log(`Retrying parsing for ${scenarioName}`)
       const { timeSeriesData, alertsData } = parseCSVData(text, scenarioName)
+      setExtractedData((prev) => ({ ...prev, [scenarioName]: timeSeriesData }))
 
       if (timeSeriesData.length === 0) {
         throw new Error("No data points were extracted from the file. Please check the format.")
@@ -136,6 +145,10 @@ export function FileUploader({
 
   const toggleDebug = (scenarioName: string) => {
     setShowDebug((prev) => ({ ...prev, [scenarioName]: !prev[scenarioName] }))
+  }
+
+  const toggleDataPreview = (scenarioName: string) => {
+    setShowDataPreview((prev) => ({ ...prev, [scenarioName]: !prev[scenarioName] }))
   }
 
   const downloadSampleCSV = () => {
@@ -241,6 +254,8 @@ Planned Inventory,,,500,510,520,530,540,550,560,570,580,590,600,610
           const hasError = error[scenario.name]
           const hasFileContent = !!fileContents[scenario.name]
           const isDebugShown = showDebug[scenario.name]
+          const isDataPreviewShown = showDataPreview[scenario.name]
+          const extractedDataPoints = extractedData[scenario.name] || []
 
           return (
             <Card
@@ -315,6 +330,51 @@ Planned Inventory,,,500,510,520,530,540,550,560,570,580,590,600,610
                       <div className="font-medium">
                         Lines: {fileContents[scenario.name].split(/\r?\n/).filter(Boolean).length}
                       </div>
+                    </div>
+                  </div>
+                )}
+
+                {isLoaded && (
+                  <div className="mb-3 flex justify-between items-center">
+                    <div className="text-xs text-green-600">{extractedDataPoints.length} data points extracted</div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-xs"
+                      onClick={() => toggleDataPreview(scenario.name)}
+                    >
+                      <Eye className="h-3 w-3 mr-1" /> {isDataPreviewShown ? "Hide" : "Preview"}
+                    </Button>
+                  </div>
+                )}
+
+                {isDataPreviewShown && extractedDataPoints.length > 0 && (
+                  <div className="mb-3 p-2 bg-gray-50 rounded border text-xs">
+                    <div className="font-medium mb-1">Data Preview (first 5 points):</div>
+                    <div className="overflow-auto max-h-32">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="bg-gray-100">
+                            <th className="p-1 text-left">Category</th>
+                            <th className="p-1 text-left">Week</th>
+                            <th className="p-1 text-right">Value</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {extractedDataPoints.slice(0, 5).map((point, idx) => (
+                            <tr key={idx} className="border-t">
+                              <td className="p-1">{point.category}</td>
+                              <td className="p-1">{point.week}</td>
+                              <td className="p-1 text-right">{point.value}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {extractedDataPoints.length > 5 && (
+                        <div className="text-center mt-1 text-gray-500">
+                          ...and {extractedDataPoints.length - 5} more
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
