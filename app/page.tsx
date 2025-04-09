@@ -11,17 +11,6 @@ import { TimeSeriesChart } from "@/components/time-series-chart"
 import { KPICards } from "@/components/kpi-cards"
 import { ScenarioComparison } from "@/components/scenario-comparison"
 import { FileUploader } from "@/components/file-uploader"
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarFooter,
-  SidebarHeader,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarProvider,
-  SidebarTrigger,
-} from "@/components/ui/sidebar"
 
 export default function Dashboard() {
   // State
@@ -34,6 +23,7 @@ export default function Dashboard() {
   const [selectedCategory, setSelectedCategory] = useState<string>("Fill Rate")
   const [selectedScenarios, setSelectedScenarios] = useState<string[]>([])
   const [showUploader, setShowUploader] = useState<boolean>(true)
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(true)
 
   // Derived state
   const categories = useMemo(() => {
@@ -432,106 +422,117 @@ export default function Dashboard() {
   }
 
   return (
-    <SidebarProvider>
-      <div className="flex h-screen bg-gray-100">
-        <Sidebar className="bg-white border-r">
-          <SidebarHeader className="border-b p-4">
-            <div className="flex items-center space-x-2">
-              <BarChart2 className="h-6 w-6 text-blue-600" />
-              <div>
-                <h1 className="font-bold">DCM Dashboard</h1>
-                <p className="text-xs text-gray-500">Supply Chain Analysis</p>
-              </div>
+    <div className="flex h-screen bg-gray-100">
+      {/* Simplified Sidebar */}
+      <div
+        className={`bg-white border-r w-64 h-screen fixed top-0 left-0 z-50 transform transition-transform duration-300 ease-in-out ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} md:translate-x-0`}
+      >
+        <div className="border-b p-4">
+          <div className="flex items-center space-x-2">
+            <BarChart2 className="h-6 w-6 text-blue-600" />
+            <div>
+              <h1 className="font-bold">DCM Dashboard</h1>
+              <p className="text-xs text-gray-500">Supply Chain Analysis</p>
             </div>
-          </SidebarHeader>
+          </div>
+        </div>
 
-          <SidebarContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton onClick={() => setActiveView("overview")} isActive={activeView === "overview"}>
-                  <Home className="h-5 w-5 mr-3" />
-                  <span>Overview</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
+        <div className="p-4">
+          <ul className="space-y-2">
+            <li>
+              <button
+                onClick={() => setActiveView("overview")}
+                className={`flex items-center w-full p-2 rounded-md ${activeView === "overview" ? "bg-blue-50 text-blue-600" : "hover:bg-gray-100"}`}
+              >
+                <Home className="h-5 w-5 mr-3" />
+                <span>Overview</span>
+              </button>
+            </li>
+            <li>
+              <button
+                onClick={() => setActiveView("timeSeries")}
+                className={`flex items-center w-full p-2 rounded-md ${activeView === "timeSeries" ? "bg-blue-50 text-blue-600" : "hover:bg-gray-100"}`}
+              >
+                <LineChart className="h-5 w-5 mr-3" />
+                <span>Time Series</span>
+              </button>
+            </li>
+            <li>
+              <button
+                onClick={() => setActiveView("comparison")}
+                className={`flex items-center w-full p-2 rounded-md ${activeView === "comparison" ? "bg-blue-50 text-blue-600" : "hover:bg-gray-100"}`}
+              >
+                <PieChart className="h-5 w-5 mr-3" />
+                <span>Comparison</span>
+              </button>
+            </li>
+            <li>
+              <button
+                onClick={() => setActiveView("rawData")}
+                className={`flex items-center w-full p-2 rounded-md ${activeView === "rawData" ? "bg-blue-50 text-blue-600" : "hover:bg-gray-100"}`}
+              >
+                <FileText className="h-5 w-5 mr-3" />
+                <span>Raw Data</span>
+              </button>
+            </li>
+          </ul>
+        </div>
 
-              <SidebarMenuItem>
-                <SidebarMenuButton onClick={() => setActiveView("timeSeries")} isActive={activeView === "timeSeries"}>
-                  <LineChart className="h-5 w-5 mr-3" />
-                  <span>Time Series</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-
-              <SidebarMenuItem>
-                <SidebarMenuButton onClick={() => setActiveView("comparison")} isActive={activeView === "comparison"}>
-                  <PieChart className="h-5 w-5 mr-3" />
-                  <span>Comparison</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-
-              <SidebarMenuItem>
-                <SidebarMenuButton onClick={() => setActiveView("rawData")} isActive={activeView === "rawData"}>
-                  <FileText className="h-5 w-5 mr-3" />
-                  <span>Raw Data</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarContent>
-
-          <SidebarFooter className="border-t p-4">
-            <div className="text-xs text-gray-500">
-              <div className="font-medium mb-1">Loaded Scenarios:</div>
-              <div className="flex flex-wrap gap-1">
-                {loadedScenarios.map((scenario) => (
+        <div className="border-t p-4 absolute bottom-0 w-full">
+          <div className="text-xs text-gray-500">
+            <div className="font-medium mb-1">Loaded Scenarios:</div>
+            <div className="flex flex-wrap gap-1">
+              {loadedScenarios.map((scenario) => (
+                <span
+                  key={scenario}
+                  className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-50 text-blue-700"
+                >
                   <span
-                    key={scenario}
-                    className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-50 text-blue-700"
-                  >
-                    <span
-                      className="w-2 h-2 rounded-full mr-1"
-                      style={{ backgroundColor: allScenarios.find((s) => s.name === scenario)?.color || "#ccc" }}
-                    ></span>
-                    {scenario}
-                  </span>
-                ))}
-                {loadedScenarios.length === 0 && <span className="text-gray-400">None</span>}
-              </div>
+                    className="w-2 h-2 rounded-full mr-1"
+                    style={{ backgroundColor: allScenarios.find((s) => s.name === scenario)?.color || "#ccc" }}
+                  ></span>
+                  {scenario}
+                </span>
+              ))}
+              {loadedScenarios.length === 0 && <span className="text-gray-400">None</span>}
             </div>
-          </SidebarFooter>
-        </Sidebar>
-
-        <div className="flex-1 overflow-auto">
-          <header className="bg-white border-b p-4 flex items-center justify-between">
-            <div className="flex items-center">
-              <SidebarTrigger className="mr-4">
-                <Menu className="h-5 w-5" />
-              </SidebarTrigger>
-              <h1 className="text-xl font-bold">Detroit Cathode Manufacturing</h1>
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <Button variant="outline" size="sm" onClick={() => setShowUploader(!showUploader)}>
-                {showUploader ? "Hide Uploader" : "Upload Data"}
-              </Button>
-              <Button variant="outline" size="sm">
-                <Settings className="h-4 w-4" />
-              </Button>
-            </div>
-          </header>
-
-          {error && (
-            <Alert variant="destructive" className="m-6">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                {error.split("\n").map((line, i) => (
-                  <div key={i}>{line}</div>
-                ))}
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {renderContent()}
+          </div>
         </div>
       </div>
-    </SidebarProvider>
+
+      {/* Main Content */}
+      <div className={`flex-1 ${sidebarOpen ? "md:ml-64" : ""}`}>
+        <header className="bg-white border-b p-4 flex items-center justify-between">
+          <div className="flex items-center">
+            <button className="mr-4 md:hidden" onClick={() => setSidebarOpen(!sidebarOpen)}>
+              <Menu className="h-5 w-5" />
+            </button>
+            <h1 className="text-xl font-bold">Detroit Cathode Manufacturing</h1>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <Button variant="outline" size="sm" onClick={() => setShowUploader(!showUploader)}>
+              {showUploader ? "Hide Uploader" : "Upload Data"}
+            </Button>
+            <Button variant="outline" size="sm">
+              <Settings className="h-4 w-4" />
+            </Button>
+          </div>
+        </header>
+
+        {error && (
+          <Alert variant="destructive" className="m-6">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              {error.split("\n").map((line, i) => (
+                <div key={i}>{line}</div>
+              ))}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {renderContent()}
+      </div>
+    </div>
   )
 }
