@@ -4,7 +4,7 @@ import type React from "react"
 import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Upload, CheckCircle2, AlertCircle } from "lucide-react"
+import { Upload, CheckCircle2, AlertCircle, Loader2 } from "lucide-react"
 import { parseCSVData } from "@/lib/csv-parser"
 import { scenarios } from "@/lib/data-utils"
 
@@ -129,7 +129,14 @@ export function FileUploader({ onDataLoaded, loadedScenarios, onLoadAll, loading
       </CardContent>
       <CardFooter className="flex justify-center">
         <Button onClick={onLoadAll} disabled={loading} className="bg-blue-600 hover:bg-blue-700 text-white" size="lg">
-          {loading ? "Loading..." : "Load All Scenarios at Once"}
+          {loading ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Loading...
+            </>
+          ) : (
+            "Load All Scenarios at Once"
+          )}
         </Button>
       </CardFooter>
     </Card>
